@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2026-04-22-1">
+  <link rel="stylesheet" href="styles.css?v=2026-04-24-2">
 </head>
 <body>
   <div class="app-shell">
@@ -24,44 +24,8 @@
               Your name
               <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
             </label>
-            <label>
-              Daily reward
-              <input id="dailyReward" name="dailyReward" type="text" placeholder="Example: Watch a movie">
-            </label>
-          </div>
-          <div class="three-up reward-input-grid">
-            <label>
-              Weekly reward
-              <input id="weeklyReward" name="weeklyReward" type="text" placeholder="Example: Dinner out">
-            </label>
-            <label>
-              Monthly reward
-              <input id="monthlyReward" name="monthlyReward" type="text" placeholder="Example: Spa day">
-            </label>
-            <label>
-              Yearly reward
-              <input id="yearlyReward" name="yearlyReward" type="text" placeholder="Example: Vacation">
-            </label>
           </div>
         </form>
-        <div class="reward-banner-grid">
-          <div id="rewardBannerDaily" class="reward-banner">
-            <strong id="rewardBannerDailyTitle">Daily reward progress</strong>
-            <p id="rewardBannerDailyText">Set your name and daily reward to see today’s reward progress.</p>
-          </div>
-          <div id="rewardBannerWeekly" class="reward-banner">
-            <strong id="rewardBannerWeeklyTitle">Weekly reward progress</strong>
-            <p id="rewardBannerWeeklyText">Add a weekly reward to track this week’s progress.</p>
-          </div>
-          <div id="rewardBannerMonthly" class="reward-banner">
-            <strong id="rewardBannerMonthlyTitle">Monthly reward progress</strong>
-            <p id="rewardBannerMonthlyText">Add a monthly reward to track this month’s progress.</p>
-          </div>
-          <div id="rewardBannerYearly" class="reward-banner">
-            <strong id="rewardBannerYearlyTitle">Yearly reward progress</strong>
-            <p id="rewardBannerYearlyText">Add a yearly reward to track this year’s progress.</p>
-          </div>
-        </div>
       </div>
       <div class="hero-date" id="todayLabel"></div>
     </header>
@@ -96,16 +60,10 @@
               <input id="goalTime" name="goalTime" type="time">
             </label>
           </div>
-          <div class="two-up">
-            <label>
-              Notes
-              <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
-            </label>
-            <label>
-              Goal reward
-              <input id="goalReward" name="goalReward" type="text" placeholder="Example: Buy new shoes">
-            </label>
-          </div>
+          <label>
+            Notes
+            <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
+          </label>
           <div class="two-up">
             <label>
               Repeat
@@ -293,7 +251,6 @@
             <span>Success</span>
             <span>Repeat</span>
             <span>Notes</span>
-            <span>Reward</span>
             <span>Action</span>
           </div>
           <div id="goalList" class="goal-table"></div>
@@ -308,10 +265,6 @@
             <h2>Day, month, and year trends</h2>
           </div>
           <div class="report-controls">
-            <label class="period-picker">
-              Goal
-              <select id="goalPerformanceGoal"></select>
-            </label>
             <label class="period-picker">
               View
               <select id="reportRange">
@@ -354,41 +307,10 @@
             <div id="trendChart" class="trend-chart" aria-label="Performance chart"></div>
           </div>
 
-          <div class="chart-panel">
-            <div class="chart-header">
-              <span>Selected goal performance</span>
-              <strong id="goalPerformanceCaption">Choose a goal</strong>
-            </div>
-            <div id="goalPerformanceList" class="performance-list"></div>
-          </div>
-
-          <div class="summary-report">
-          <div class="chart-header">
-            <span>Summary report</span>
-            <strong id="summaryReportCaption">Selected period</strong>
-          </div>
-          <div class="summary-report-grid">
-            <article class="report-box">
-              <span class="report-label">Completed</span>
-              <strong id="summaryCompleted">0</strong>
-              <p id="summaryCompletedText" class="report-text">No completed goals in this period.</p>
-            </article>
-            <article class="report-box">
-              <span class="report-label">Not done</span>
-              <strong id="summaryOutstanding">0</strong>
-              <p id="summaryOutstandingText" class="report-text">No outstanding goals in this period.</p>
-            </article>
-          </div>
-          <article class="report-box summary-narrative">
-            <span class="report-label">Report summary</span>
-            <strong id="summaryProgress">0%</strong>
-            <p id="summaryNarrative" class="report-text">Choose a period to see your completed work, missed work, and overall progress.</p>
-          </article>
-        </div>
       </section>
     </main>
   </div>
 
-  <script src="rebuilt-dashboard.js?v=2026-04-23-1"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-24-3"></script>
 </body>
 </html>

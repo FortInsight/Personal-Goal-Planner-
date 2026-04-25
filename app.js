@@ -4,11 +4,7 @@ const defaultState = {
   goals: [],
   completions: [],
   profile: {
-    name: "",
-    dailyReward: "",
-    weeklyReward: "",
-    monthlyReward: "",
-    yearlyReward: ""
+    name: ""
   }
 };
 
@@ -47,7 +43,6 @@ const createFields = {
   repeatInterval: document.getElementById("goalRepeatInterval"),
   repeatUnit: document.getElementById("goalRepeatUnit"),
   notes: document.getElementById("goalNotes"),
-  reward: document.getElementById("goalReward"),
   submitButton: document.getElementById("goalSubmitButton")
 };
 
@@ -66,23 +61,7 @@ const subGoalFields = {
 };
 
 const profileFields = {
-  name: document.getElementById("profileName"),
-  dailyReward: document.getElementById("dailyReward"),
-  weeklyReward: document.getElementById("weeklyReward"),
-  monthlyReward: document.getElementById("monthlyReward"),
-  yearlyReward: document.getElementById("yearlyReward"),
-  dailyBanner: document.getElementById("rewardBannerDaily"),
-  dailyBannerTitle: document.getElementById("rewardBannerDailyTitle"),
-  dailyBannerText: document.getElementById("rewardBannerDailyText"),
-  weeklyBanner: document.getElementById("rewardBannerWeekly"),
-  weeklyBannerTitle: document.getElementById("rewardBannerWeeklyTitle"),
-  weeklyBannerText: document.getElementById("rewardBannerWeeklyText"),
-  monthlyBanner: document.getElementById("rewardBannerMonthly"),
-  monthlyBannerTitle: document.getElementById("rewardBannerMonthlyTitle"),
-  monthlyBannerText: document.getElementById("rewardBannerMonthlyText"),
-  yearlyBanner: document.getElementById("rewardBannerYearly"),
-  yearlyBannerTitle: document.getElementById("rewardBannerYearlyTitle"),
-  yearlyBannerText: document.getElementById("rewardBannerYearlyText")
+  name: document.getElementById("profileName")
 };
 
 const expandedGoalRows = new Set();
@@ -155,10 +134,6 @@ function initialize() {
 
 function handleProfileChange() {
   state.profile.name = profileFields.name.value;
-  state.profile.dailyReward = profileFields.dailyReward.value;
-  state.profile.weeklyReward = profileFields.weeklyReward.value;
-  state.profile.monthlyReward = profileFields.monthlyReward.value;
-  state.profile.yearlyReward = profileFields.yearlyReward.value;
   persistAndRender();
 }
 
@@ -186,7 +161,6 @@ function handleGoalSubmit(event) {
     goal.dueDate = dueDate || "";
     goal.time = dueTime || "";
     goal.notes = createFields.notes.value.trim();
-    goal.reward = createFields.reward.value.trim();
     goal.repeat = normalizedRepeatValue;
     focusGoalListOnDate(goal.dueDate);
     persistAndRender();
@@ -203,7 +177,6 @@ function handleGoalSubmit(event) {
     progress: 0,
     repeat: normalizedRepeatValue,
     notes: createFields.notes.value.trim(),
-    reward: createFields.reward.value.trim(),
     generatedFromRepeat: false,
     subGoals: []
   });
@@ -442,7 +415,6 @@ function renderGoalCollection(container, goals, isTodayView) {
               <span class="pill">${goal.progress || 0}%</span>
               <span class="pill">${escapeHtml(humanizeDueState(dueState))}</span>
               <span class="pill repeat-pill">${escapeHtml(humanizeRepeat(goal.repeat || "none"))}</span>
-              ${goal.reward ? `<span class="pill reward-pill">${escapeHtml(goal.status === "completed" ? `Earned: ${goal.reward}` : `Reward: ${goal.reward}`)}</span>` : ""}
             </div>
           </div>
         </div>
@@ -481,7 +453,6 @@ function renderGoalTable(container, goals) {
   container.innerHTML = goals.map((goal) => {
     const dueState = getDueState(goal);
     const notes = goal.notes ? escapeHtml(goal.notes) : '<span class="goal-table-notes">No notes</span>';
-    const reward = goal.reward ? escapeHtml(goal.reward) : '<span class="goal-table-notes">No reward</span>';
     const displayDueDate = getGoalListDisplayDate(goal, goalListRange.value);
     const performance = performanceMap.get(goal.seriesId || goal.id);
     const successText = performance
@@ -511,7 +482,6 @@ function renderGoalTable(container, goals) {
           <span class="pill">${escapeHtml(humanizeRepeat(goal.repeat || "none"))}</span>
         </div>
         <div class="goal-table-cell goal-table-notes">${notes}</div>
-        <div class="goal-table-cell goal-table-notes">${reward}</div>
         <div class="goal-table-cell">
           <div class="goal-actions">
             <select class="${getStatusSelectClass(goal.status)}" data-goal-id="${goal.id}" aria-label="Change status for ${escapeHtml(goal.title)}">
@@ -758,7 +728,6 @@ function normalizeState(saved) {
     status: goal.status === "planned" ? "not-started" : (goal.status || "not-started"),
     progress: normalizeProgress(goal.progress ?? (goal.status === "completed" ? 100 : 0), goal.status),
     repeat: goal.repeat || "none",
-    reward: goal.reward || "",
     generatedFromRepeat: Boolean(goal.generatedFromRepeat),
     subGoals: (goal.subGoals || []).map((subGoal) => ({
       id: subGoal.id || makeId(),
@@ -772,84 +741,13 @@ function normalizeState(saved) {
   markLegacyGeneratedRepeats(stateWithDefaults.goals);
   stateWithDefaults.completions = stateWithDefaults.completions || [];
   stateWithDefaults.profile = {
-    name: saved.profile?.name || "",
-    dailyReward: saved.profile?.dailyReward || "",
-    weeklyReward: saved.profile?.weeklyReward || "",
-    monthlyReward: saved.profile?.monthlyReward || "",
-    yearlyReward: saved.profile?.yearlyReward || ""
+    name: saved.profile?.name || ""
   };
   return stateWithDefaults;
 }
 
 function renderProfile() {
   profileFields.name.value = state.profile.name || "";
-  profileFields.dailyReward.value = state.profile.dailyReward || "";
-  profileFields.weeklyReward.value = state.profile.weeklyReward || "";
-  profileFields.monthlyReward.value = state.profile.monthlyReward || "";
-  profileFields.yearlyReward.value = state.profile.yearlyReward || "";
-  renderRewardBanner({
-    banner: profileFields.dailyBanner,
-    title: profileFields.dailyBannerTitle,
-    text: profileFields.dailyBannerText,
-    heading: "daily",
-    reward: state.profile.dailyReward,
-    progress: getPeriodProgress("day")
-  });
-  renderRewardBanner({
-    banner: profileFields.weeklyBanner,
-    title: profileFields.weeklyBannerTitle,
-    text: profileFields.weeklyBannerText,
-    heading: "weekly",
-    reward: state.profile.weeklyReward,
-    progress: getPeriodProgress("week")
-  });
-  renderRewardBanner({
-    banner: profileFields.monthlyBanner,
-    title: profileFields.monthlyBannerTitle,
-    text: profileFields.monthlyBannerText,
-    heading: "monthly",
-    reward: state.profile.monthlyReward,
-    progress: getPeriodProgress("month")
-  });
-  renderRewardBanner({
-    banner: profileFields.yearlyBanner,
-    title: profileFields.yearlyBannerTitle,
-    text: profileFields.yearlyBannerText,
-    heading: "yearly",
-    reward: state.profile.yearlyReward,
-    progress: getPeriodProgress("year")
-  });
-}
-
-function renderRewardBanner(config) {
-  const reward = (config.reward || "").trim();
-  config.banner.classList.remove("reward-banner--ready", "reward-banner--success", "reward-banner--pop");
-  config.title.textContent = `${capitalize(config.heading)} reward progress`;
-
-  if (!reward) {
-    config.banner.hidden = true;
-    return;
-  }
-
-  config.banner.hidden = false;
-  config.banner.classList.add("reward-banner--ready");
-
-  if (config.progress >= 100) {
-    config.banner.classList.remove("reward-banner--ready");
-    config.banner.classList.add("reward-banner--success");
-    config.text.textContent = `You earned your ${config.heading} achieved goal reward: ${reward}.`;
-    triggerRewardBannerPop(config.banner);
-    return;
-  }
-
-  config.text.textContent = `You have ${config.progress}% progress toward your ${config.heading} achieved goal reward: ${reward}.`;
-  triggerRewardBannerPop(config.banner);
-}
-
-function triggerRewardBannerPop(banner) {
-  banner.classList.remove("reward-banner--pop");
-  void banner.offsetWidth;
-  banner.classList.add("reward-banner--pop");
 }
 
 function renderGoalPicker() {
@@ -886,7 +784,6 @@ function syncFormFromSelectedGoal() {
   createFields.date.value = goal.dueDate || "";
   createFields.time.value = goal.time || "";
   createFields.notes.value = goal.notes || "";
-  createFields.reward.value = goal.reward || "";
   const customRepeat = parseCustomRepeat(goal.repeat);
   if (customRepeat) {
     createFields.repeat.value = "custom";
@@ -1047,7 +944,6 @@ function createNextRepeat(goal) {
     status: "planned",
     repeat: goal.repeat,
     notes: goal.notes,
-    reward: goal.reward || "",
     subGoals: []
   });
 }
@@ -1077,7 +973,6 @@ function syncRepeatingGoals() {
             status: "planned",
             repeat: goal.repeat,
             notes: goal.notes,
-            reward: goal.reward || "",
             generatedFromRepeat: true,
             subGoals: []
           });

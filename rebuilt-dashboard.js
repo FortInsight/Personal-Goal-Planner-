@@ -5,22 +5,6 @@ const $ = (id) => document.getElementById(id);
 const elements = {
   profileForm: $("profileForm"),
   profileName: $("profileName"),
-  dailyReward: $("dailyReward"),
-  weeklyReward: $("weeklyReward"),
-  monthlyReward: $("monthlyReward"),
-  yearlyReward: $("yearlyReward"),
-  rewardBannerDaily: $("rewardBannerDaily"),
-  rewardBannerDailyTitle: $("rewardBannerDailyTitle"),
-  rewardBannerDailyText: $("rewardBannerDailyText"),
-  rewardBannerWeekly: $("rewardBannerWeekly"),
-  rewardBannerWeeklyTitle: $("rewardBannerWeeklyTitle"),
-  rewardBannerWeeklyText: $("rewardBannerWeeklyText"),
-  rewardBannerMonthly: $("rewardBannerMonthly"),
-  rewardBannerMonthlyTitle: $("rewardBannerMonthlyTitle"),
-  rewardBannerMonthlyText: $("rewardBannerMonthlyText"),
-  rewardBannerYearly: $("rewardBannerYearly"),
-  rewardBannerYearlyTitle: $("rewardBannerYearlyTitle"),
-  rewardBannerYearlyText: $("rewardBannerYearlyText"),
   todayLabel: $("todayLabel"),
   goalForm: $("goalForm"),
   goalPicker: $("goalPicker"),
@@ -28,7 +12,6 @@ const elements = {
   goalDate: $("goalDate"),
   goalTime: $("goalTime"),
   goalNotes: $("goalNotes"),
-  goalReward: $("goalReward"),
   goalRepeat: $("goalRepeat"),
   customRepeatWrap: $("customRepeatWrap"),
   goalRepeatInterval: $("goalRepeatInterval"),
@@ -71,24 +54,10 @@ const elements = {
   dailyStatusLegend: $("dailyStatusLegend"),
   chartCaption: $("chartCaption"),
   trendChart: $("trendChart"),
-  goalPerformanceCaption: $("goalPerformanceCaption"),
-  goalPerformanceGoal: $("goalPerformanceGoal"),
-  goalPerformanceList: $("goalPerformanceList"),
-  summaryReportCaption: $("summaryReportCaption"),
-  summaryCompleted: $("summaryCompleted"),
-  summaryCompletedText: $("summaryCompletedText"),
-  summaryOutstanding: $("summaryOutstanding"),
-  summaryOutstandingText: $("summaryOutstandingText"),
-  summaryProgress: $("summaryProgress"),
-  summaryNarrative: $("summaryNarrative"),
 };
 
 const defaultProfile = {
   profileName: "",
-  dailyReward: "",
-  weeklyReward: "",
-  monthlyReward: "",
-  yearlyReward: "",
 };
 
 const state = loadState();
@@ -105,7 +74,6 @@ function loadState() {
           goalListCollapsed: false,
           reportRange: "day",
           reportPeriod: "",
-          goalPerformanceGoalId: "",
         },
       };
     }
@@ -118,7 +86,6 @@ function loadState() {
         goalListCollapsed: Boolean(parsed.ui?.goalListCollapsed),
         reportRange: parsed.ui?.reportRange || "day",
         reportPeriod: parsed.ui?.reportPeriod || "",
-        goalPerformanceGoalId: parsed.ui?.goalPerformanceGoalId || "",
       },
     };
   } catch {
@@ -130,7 +97,6 @@ function loadState() {
         goalListCollapsed: false,
         reportRange: "day",
         reportPeriod: "",
-        goalPerformanceGoalId: "",
       },
     };
   }
@@ -147,7 +113,6 @@ function normalizeGoal(goal) {
     dueDate: goal.dueDate || "",
     time: goal.time || "",
     notes: goal.notes || "",
-    reward: goal.reward || "",
     status: normalizeStatus(goal.status),
     progress: clampNumber(goal.progress, 0, 100, 0),
     repeat: goal.repeat || "none",
@@ -507,10 +472,6 @@ function updateCustomRepeatVisibility() {
 
 function renderProfile() {
   elements.profileName.value = state.profile.profileName || "";
-  elements.dailyReward.value = state.profile.dailyReward || "";
-  elements.weeklyReward.value = state.profile.weeklyReward || "";
-  elements.monthlyReward.value = state.profile.monthlyReward || "";
-  elements.yearlyReward.value = state.profile.yearlyReward || "";
   elements.todayLabel.textContent = formatLongDate(getToday());
 }
 
@@ -526,20 +487,6 @@ function renderGoalPicker() {
     .join("");
   elements.goalPicker.innerHTML = options;
   elements.goalPicker.value = current;
-
-  const performanceOptions = ['<option value="">All</option>']
-    .concat(
-      [...state.goals].sort(sortGoals).map((goal) => {
-        const due = goal.dueDate ? ` - ${formatDate(goal.dueDate)}` : "";
-        return `<option value="${goal.id}">${escapeHtml(goal.title)}${due}</option>`;
-      }),
-    )
-    .join("");
-  elements.goalPerformanceGoal.innerHTML = performanceOptions;
-  if (!state.goals.some((goal) => goal.id === state.ui.goalPerformanceGoalId)) {
-    state.ui.goalPerformanceGoalId = "";
-  }
-  elements.goalPerformanceGoal.value = state.ui.goalPerformanceGoalId;
 }
 
 function renderSelectedGoal() {
@@ -554,7 +501,6 @@ function renderSelectedGoal() {
     elements.goalDate.value = "";
     elements.goalTime.value = "";
     elements.goalNotes.value = "";
-    elements.goalReward.value = "";
     elements.goalRepeat.value = "none";
     elements.goalRepeatInterval.value = 2;
     elements.goalRepeatUnit.value = "day";
@@ -570,7 +516,6 @@ function renderSelectedGoal() {
   elements.goalDate.value = goal.dueDate;
   elements.goalTime.value = goal.time || "";
   elements.goalNotes.value = goal.notes || "";
-  elements.goalReward.value = goal.reward || "";
   elements.goalRepeat.value = goal.repeat || "none";
   elements.goalRepeatInterval.value = goal.repeatInterval || 2;
   elements.goalRepeatUnit.value = goal.repeatUnit || "day";
@@ -672,61 +617,6 @@ function setProgressCard(labelNode, fillNode, percent) {
   fillNode.style.width = `${percent}%`;
 }
 
-function renderRewardBanners() {
-  const today = getToday();
-  renderRewardBanner(
-    elements.rewardBannerDaily,
-    elements.rewardBannerDailyTitle,
-    elements.rewardBannerDailyText,
-    "Daily reward progress",
-    state.profile.dailyReward,
-    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, today, today))),
-    "daily",
-  );
-  renderRewardBanner(
-    elements.rewardBannerWeekly,
-    elements.rewardBannerWeeklyTitle,
-    elements.rewardBannerWeeklyText,
-    "Weekly reward progress",
-    state.profile.weeklyReward,
-    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfWeek(today), endOfWeek(today)))),
-    "weekly",
-  );
-  renderRewardBanner(
-    elements.rewardBannerMonthly,
-    elements.rewardBannerMonthlyTitle,
-    elements.rewardBannerMonthlyText,
-    "Monthly reward progress",
-    state.profile.monthlyReward,
-    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfMonth(today), endOfMonth(today)))),
-    "monthly",
-  );
-  renderRewardBanner(
-    elements.rewardBannerYearly,
-    elements.rewardBannerYearlyTitle,
-    elements.rewardBannerYearlyText,
-    "Yearly reward progress",
-    state.profile.yearlyReward,
-    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfYear(today), endOfYear(today)))),
-    "yearly",
-  );
-}
-
-function renderRewardBanner(node, titleNode, textNode, title, reward, pct, periodLabel) {
-  node.hidden = !reward;
-  node.classList.remove("reward-banner--ready", "reward-banner--success", "reward-banner--pop");
-  if (!reward) return;
-
-  titleNode.textContent = title;
-  if (pct >= 100) {
-    node.classList.add("reward-banner--success", "reward-banner--pop");
-    textNode.textContent = `You earned your ${periodLabel} achieved goal reward: ${reward}.`;
-    return;
-  }
-  node.classList.add("reward-banner--ready");
-  textNode.textContent = `You have ${pct}% progress toward your ${periodLabel} achieved goal reward: ${reward}.`;
-}
-
 function renderGoalList() {
   const goals = getFilteredGoals();
   const { start, end, label } = getFilterRange();
@@ -744,7 +634,6 @@ function renderGoalList() {
               <div class="goal-table-cell">${success.text}</div>
               <div class="goal-table-cell"><span class="pill repeat-pill">${escapeHtml(getRepeatLabel(goal))}</span></div>
               <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.notes || "No notes")}</div>
-              <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.reward || "No reward")}</div>
               <div class="goal-table-cell">
                 <div class="goal-actions">
                   <select class="status-select ${statusClass(goal.status)}" data-goal-id="${goal.id}">
@@ -807,18 +696,6 @@ function renderReports() {
           : "Yearly view";
   elements.trendChart.innerHTML = trendBars.join("");
 
-  elements.summaryReportCaption.textContent = selected.label;
-  elements.summaryCompleted.textContent = String(completed);
-  elements.summaryOutstanding.textContent = String(total - completed);
-  elements.summaryProgress.textContent = total ? `${percent}%` : "0%";
-  elements.summaryCompletedText.textContent = total
-    ? `${completed} completed out of ${total} goals in this period.`
-    : "No completed goals in this period.";
-  elements.summaryOutstandingText.textContent = total
-    ? `${total - completed} goals still need attention in this period.`
-    : "No outstanding goals in this period.";
-  elements.summaryNarrative.textContent = buildSummaryNarrative(selected.label, total, completed, inProgress, percent);
-  renderGoalPerformancePanel();
 }
 
 function buildReportPeriods(range) {
@@ -882,7 +759,7 @@ function buildTrendBars(range) {
         : range === "month"
           ? new Intl.DateTimeFormat("en-CA", { month: "short" }).format(period.start)
           : period.label;
-    const topLabel = percent === 100 && goals.length ? "Perfect day" : `${percent}%`;
+    const topLabel = `${percent}%`;
     return `
       <div class="chart-col">
         <div class="chart-value">${topLabel}</div>
@@ -897,16 +774,6 @@ function buildTrendBars(range) {
   });
 }
 
-function buildSummaryNarrative(label, total, completed, inProgress, percent) {
-  if (!total) {
-    return `No goals are scheduled for ${label.toLowerCase()} yet. Add a goal to start building momentum.`;
-  }
-  if (percent === 100) {
-    return `${label} is a perfect day. You completed all ${total} scheduled goals.`;
-  }
-  return `${label} has ${completed} completed goals, ${inProgress} in progress, and ${total - completed - inProgress} not started, with an overall progress of ${percent}%. Keep going.`;
-}
-
 function renderEmptyReport() {
   elements.dailyStatusCaption.textContent = "Today";
   elements.dailyDonutValue.textContent = "0%";
@@ -918,131 +785,6 @@ function renderEmptyReport() {
   ].join("");
   elements.chartCaption.textContent = "Daily view";
   elements.trendChart.innerHTML = '<div class="empty-state">No data yet.</div>';
-  elements.summaryReportCaption.textContent = "Selected period";
-  elements.summaryCompleted.textContent = "0";
-  elements.summaryOutstanding.textContent = "0";
-  elements.summaryProgress.textContent = "0%";
-  elements.summaryCompletedText.textContent = "No completed goals in this period.";
-  elements.summaryOutstandingText.textContent = "No outstanding goals in this period.";
-  elements.summaryNarrative.textContent =
-    "Choose a period to see your completed work, missed work, and overall progress.";
-  renderGoalPerformancePanel();
-}
-
-function renderGoalPerformancePanel() {
-  const goal = state.goals.find((item) => item.id === state.ui.goalPerformanceGoalId);
-  const range = elements.reportRange.value;
-  const periods = buildGoalPerformancePeriods(range);
-  if (!goal) {
-    elements.goalPerformanceCaption.textContent = `All goals - ${range} view`;
-    elements.goalPerformanceList.innerHTML = periods.map((period) => buildAllGoalsPerformanceRow(period)).join("");
-    return;
-  }
-  const rows = periods.map((period) => buildGoalPerformanceRow(goal, period));
-
-  elements.goalPerformanceCaption.textContent = `${goal.title} · ${range} view`;
-  elements.goalPerformanceList.innerHTML = rows.join("");
-  elements.goalPerformanceCaption.textContent = `${goal.title} - ${range} view`;
-}
-
-function buildGoalPerformancePeriods(range) {
-  const today = getToday();
-  if (range === "day") {
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = addDays(today, index - 6);
-      return {
-        key: toIsoDate(date),
-        label: formatLongDate(date),
-        start: date,
-        end: date,
-      };
-    });
-  }
-  if (range === "week") {
-    return Array.from({ length: 6 }, (_, index) => {
-      const anchor = addDays(startOfWeek(today), (index - 5) * 7);
-      return {
-        key: `${toIsoDate(anchor)}-week`,
-        label: `${formatDate(startOfWeek(anchor))} to ${formatDate(endOfWeek(anchor))}`,
-        start: startOfWeek(anchor),
-        end: endOfWeek(anchor),
-      };
-    });
-  }
-  if (range === "month") {
-    return Array.from({ length: 6 }, (_, index) => {
-      const date = addMonths(startOfMonth(today), index - 5);
-      return {
-        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-        label: new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric" }).format(date),
-        start: startOfMonth(date),
-        end: endOfMonth(date),
-      };
-    });
-  }
-  return Array.from({ length: 5 }, (_, index) => {
-    const year = today.getFullYear() - 4 + index;
-    const date = new Date(year, 0, 1);
-    return {
-      key: `${year}`,
-      label: `${year}`,
-      start: startOfYear(date),
-      end: endOfYear(date),
-    };
-  });
-}
-
-function buildGoalPerformanceRow(goal, period) {
-  const snapshot = getGoalSnapshotForPeriod(goal, period.start, period.end);
-  if (!snapshot) {
-    return `
-      <article class="performance-item">
-        <div class="performance-head">
-          <strong class="performance-title">${escapeHtml(period.label)}</strong>
-          <span class="performance-meta">No update</span>
-        </div>
-        <div class="performance-bar">
-          <div class="performance-fill" style="width:0%"></div>
-        </div>
-        <div class="performance-meta">No status update saved for this period.</div>
-      </article>
-    `;
-  }
-
-  const percent = snapshot.status === "completed" ? 100 : clampNumber(snapshot.progress, 0, 100, 0);
-  return `
-    <article class="performance-item">
-      <div class="performance-head">
-        <strong class="performance-title">${escapeHtml(period.label)}</strong>
-        <span class="performance-meta">${statusLabel(snapshot.status)} · ${percent}%</span>
-      </div>
-      <div class="performance-bar">
-        <div class="performance-fill" style="width:${percent}%"></div>
-      </div>
-      <div class="performance-meta">Last update ${formatDate(new Date(snapshot.date))}</div>
-    </article>
-  `;
-}
-
-function buildAllGoalsPerformanceRow(period) {
-  const goals = state.goals.filter((goal) => goalOccursWithin(goal, period.start, period.end));
-  const total = goals.length;
-  const completed = goals.filter((goal) => goal.status === "completed").length;
-  const inProgress = goals.filter((goal) => goal.status === "in-progress").length;
-  const percent = total ? Math.round((completed / total) * 100) : 0;
-
-  return `
-    <article class="performance-item">
-      <div class="performance-head">
-        <strong class="performance-title">${escapeHtml(period.label)}</strong>
-        <span class="performance-meta">${completed}/${total} completed - ${percent}%</span>
-      </div>
-      <div class="performance-bar">
-        <div class="performance-fill" style="width:${percent}%"></div>
-      </div>
-      <div class="performance-meta">${inProgress} in progress, ${Math.max(total - completed - inProgress, 0)} not started.</div>
-    </article>
-  `;
 }
 
 function getGoalSnapshotForPeriod(goal, start, end) {
@@ -1103,7 +845,6 @@ function render() {
   renderGoalPicker();
   renderSelectedGoal();
   renderStats();
-  renderRewardBanners();
   renderGoalList();
   renderReports();
   updateTableVisibility();
@@ -1125,10 +866,6 @@ function wireEvents() {
   elements.profileForm.addEventListener("input", () => {
     state.profile = {
       profileName: elements.profileName.value,
-      dailyReward: elements.dailyReward.value,
-      weeklyReward: elements.weeklyReward.value,
-      monthlyReward: elements.monthlyReward.value,
-      yearlyReward: elements.yearlyReward.value,
     };
     render();
   });
@@ -1148,7 +885,6 @@ function wireEvents() {
       dueDate: elements.goalDate.value,
       time: elements.goalTime.value,
       notes: elements.goalNotes.value.trim(),
-      reward: elements.goalReward.value.trim(),
       repeat: elements.goalRepeat.value,
       repeatInterval: clampNumber(elements.goalRepeatInterval.value, 1, 999, 1),
       repeatUnit: elements.goalRepeatUnit.value,
@@ -1168,9 +904,6 @@ function wireEvents() {
     }
 
     state.ui.selectedGoalId = "";
-    if (!state.ui.goalPerformanceGoalId && state.goals.length) {
-      state.ui.goalPerformanceGoalId = state.goals[state.goals.length - 1].id;
-    }
     elements.goalListRange.value = "all";
     elements.goalListStatus.value = "all";
     render();
@@ -1291,12 +1024,6 @@ function wireEvents() {
   elements.reportPeriod.addEventListener("change", () => {
     state.ui.reportPeriod = elements.reportPeriod.value;
     renderReports();
-    saveState();
-  });
-
-  elements.goalPerformanceGoal.addEventListener("change", () => {
-    state.ui.goalPerformanceGoalId = elements.goalPerformanceGoal.value;
-    render();
     saveState();
   });
 }
