@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Personal Daily Goals</title>
+  <title>Personal Daily Goals Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -309,9 +309,14 @@
           </div>
           <div class="report-controls">
             <label class="period-picker">
+              Goal
+              <select id="goalPerformanceGoal"></select>
+            </label>
+            <label class="period-picker">
               View
               <select id="reportRange">
                 <option value="day" selected>Day</option>
+                <option value="week">Week</option>
                 <option value="month">Month</option>
                 <option value="year">Year</option>
               </select>
@@ -349,6 +354,14 @@
             <div id="trendChart" class="trend-chart" aria-label="Performance chart"></div>
           </div>
 
+          <div class="chart-panel">
+            <div class="chart-header">
+              <span>Selected goal performance</span>
+              <strong id="goalPerformanceCaption">Choose a goal</strong>
+            </div>
+            <div id="goalPerformanceList" class="performance-list"></div>
+          </div>
+
           <div class="summary-report">
           <div class="chart-header">
             <span>Summary report</span>
@@ -376,6 +389,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=2026-04-24-1"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-23-1"></script>
 </body>
 </html>
