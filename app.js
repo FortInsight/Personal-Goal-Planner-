@@ -14,6 +14,14 @@ const defaultState = {
 
 const state = loadState();
 
+function makeId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `goal-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
 const goalForm = document.getElementById("goalForm");
 const updateGoalForm = document.getElementById("updateGoalForm");
 const subGoalForm = document.getElementById("subGoalForm");
@@ -186,8 +194,8 @@ function handleGoalSubmit(event) {
   }
 
   state.goals.unshift({
-    id: crypto.randomUUID(),
-    seriesId: crypto.randomUUID(),
+    id: makeId(),
+    seriesId: makeId(),
     title,
     dueDate: dueDate || "",
     time: dueTime || "",
@@ -225,7 +233,7 @@ function handleSubGoalSubmit(event) {
 
   goal.subGoals = goal.subGoals || [];
   goal.subGoals.unshift({
-    id: crypto.randomUUID(),
+    id: makeId(),
     title,
     dueDate,
     status: "not-started",
@@ -399,7 +407,11 @@ function render() {
   renderGoalTable(goalList, sortGoals(visibleGoals));
   renderGoalPicker();
   renderReports();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Could not save planner data.", error);
+  }
 }
 
 function renderGoalCollection(container, goals, isTodayView) {
@@ -642,7 +654,8 @@ function formatTime(timeString) {
 
 function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const savedRaw = localStorage.getItem(STORAGE_KEY);
+    const saved = savedRaw ? JSON.parse(savedRaw) : null;
     return saved ? normalizeState(saved) : structuredClone(defaultState);
   } catch (error) {
     return structuredClone(defaultState);
@@ -739,7 +752,7 @@ function normalizeState(saved) {
 
   stateWithDefaults.goals = (stateWithDefaults.goals || []).map((goal) => ({
     ...goal,
-    seriesId: goal.seriesId || crypto.randomUUID(),
+    seriesId: goal.seriesId || makeId(),
     dueDate: goal.dueDate || "",
     time: goal.time || "",
     status: goal.status === "planned" ? "not-started" : (goal.status || "not-started"),
@@ -748,7 +761,7 @@ function normalizeState(saved) {
     reward: goal.reward || "",
     generatedFromRepeat: Boolean(goal.generatedFromRepeat),
     subGoals: (goal.subGoals || []).map((subGoal) => ({
-      id: subGoal.id || crypto.randomUUID(),
+      id: subGoal.id || makeId(),
       title: subGoal.title || "Sub-goal",
       dueDate: subGoal.dueDate || goal.dueDate || "",
       status: subGoal.status === "planned" ? "not-started" : (subGoal.status || "not-started"),
@@ -1027,7 +1040,7 @@ function createNextRepeat(goal) {
   }
 
   state.goals.unshift({
-    id: crypto.randomUUID(),
+    id: makeId(),
     seriesId: goal.seriesId,
     title: goal.title,
     dueDate: nextDate,
@@ -1057,7 +1070,7 @@ function syncRepeatingGoals() {
 
         if (!existingNextGoal) {
           state.goals.unshift({
-            id: crypto.randomUUID(),
+            id: makeId(),
             seriesId: goal.seriesId,
             title: goal.title,
             dueDate: nextDate,
