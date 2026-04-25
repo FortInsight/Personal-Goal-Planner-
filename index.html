@@ -4,10 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Daily Goals Dashboard</title>
+  <meta name="theme-color" content="#0a224a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2026-04-24-2">
+  <link rel="stylesheet" href="styles.css?v=2026-04-25-1">
 </head>
 <body>
   <div class="app-shell">
@@ -31,6 +37,70 @@
     </header>
 
     <main class="layout">
+      <section class="card access-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Access</p>
+            <h2>Install and sync your planner</h2>
+          </div>
+          <div class="access-actions">
+            <button id="installButton" class="ghost-btn compact-btn" type="button" hidden>Install app</button>
+            <span id="cloudModeBadge" class="mode-badge">Local mode</span>
+          </div>
+        </div>
+
+        <div class="access-grid">
+          <article class="access-panel">
+            <p class="access-kicker">Account status</p>
+            <h3 id="authStatusTitle">Using local storage on this device</h3>
+            <p id="authStatusText" class="access-text">Add Supabase keys to enable login and cross-device sync.</p>
+            <div class="access-meta">
+              <span id="authUserEmail" class="pill" hidden></span>
+              <span id="syncStatusPill" class="pill">Not synced</span>
+            </div>
+            <p id="authMessage" class="inline-message" hidden></p>
+          </article>
+
+          <form id="authForm" class="goal-form access-form">
+            <div class="two-up">
+              <label>
+                Email
+                <input id="authEmail" name="authEmail" type="email" placeholder="name@example.com" autocomplete="email">
+              </label>
+              <label>
+                Password
+                <input id="authPassword" name="authPassword" type="password" placeholder="Enter password" autocomplete="current-password">
+              </label>
+            </div>
+            <div class="access-button-row">
+              <button id="signInButton" class="primary-btn" type="submit">Sign in</button>
+              <button id="signUpButton" class="ghost-btn" type="button">Create account</button>
+            </div>
+          </form>
+
+          <form id="passwordForm" class="goal-form access-form" hidden>
+            <div class="two-up">
+              <label>
+                New password
+                <input id="newPassword" name="newPassword" type="password" placeholder="Set a new password" autocomplete="new-password">
+              </label>
+              <label>
+                Confirm password
+                <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Repeat password" autocomplete="new-password">
+              </label>
+            </div>
+            <div class="access-button-row">
+              <button id="changePasswordButton" class="primary-btn" type="submit">Change password</button>
+              <button id="signOutButton" class="ghost-btn" type="button">Sign out</button>
+            </div>
+          </form>
+        </div>
+
+        <p id="authHint" class="access-hint">
+          You can give a user a temporary password in Supabase, then they can sign in here and change it inside the app.
+        </p>
+      </section>
+
       <section class="card form-card">
         <div class="section-heading">
           <div>
@@ -311,6 +381,8 @@
     </main>
   </div>
 
-  <script src="rebuilt-dashboard.js?v=2026-04-24-3"></script>
+  <script src="supabase-config.js?v=2026-04-25-1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-25-1"></script>
 </body>
 </html>

@@ -205,6 +205,7 @@ label,
   grid-column: span 6;
 }
 
+.access-card,
 .today-card,
 .all-goals-card,
 .report-card {
@@ -217,6 +218,106 @@ label,
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 18px;
+}
+
+.access-actions,
+.access-meta,
+.access-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.access-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.access-panel,
+.access-form {
+  min-height: 100%;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+}
+
+.access-kicker {
+  margin: 0 0 8px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+}
+
+.access-panel h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.access-text,
+.access-hint,
+.inline-message {
+  color: var(--muted);
+}
+
+.access-text {
+  margin: 10px 0 14px;
+}
+
+.access-hint {
+  margin: 14px 0 0;
+  font-size: 0.94rem;
+}
+
+.inline-message {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.inline-message[data-tone="success"] {
+  color: #dbfff0;
+  border-color: rgba(86, 214, 162, 0.34);
+  background: rgba(86, 214, 162, 0.14);
+}
+
+.inline-message[data-tone="error"] {
+  color: #ffe3e3;
+  border-color: rgba(255, 125, 125, 0.34);
+  background: rgba(255, 125, 125, 0.12);
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.mode-badge--cloud {
+  border-color: rgba(86, 214, 162, 0.32);
+  background: rgba(86, 214, 162, 0.14);
+}
+
+.mode-badge--local {
+  border-color: rgba(255, 204, 102, 0.28);
+  background: rgba(255, 204, 102, 0.12);
+}
+
+.mode-badge--offline {
+  border-color: rgba(255, 125, 125, 0.28);
+  background: rgba(255, 125, 125, 0.12);
 }
 
 .goal-form,
@@ -1001,6 +1102,7 @@ select:focus {
   .daily-status-wrap,
   .two-up,
   .three-up,
+  .access-grid,
   .summary-report-grid,
   .stats-grid {
     display: grid;

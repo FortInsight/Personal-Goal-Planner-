@@ -1,0 +1,18 @@
+{
+  "name": "Personal Daily Goals Dashboard",
+  "short_name": "Goal Planner",
+  "description": "Track daily goals, progress, and performance across your devices.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#d8efff",
+  "theme_color": "#0a224a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

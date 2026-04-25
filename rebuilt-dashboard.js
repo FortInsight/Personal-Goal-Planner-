@@ -1,4 +1,5 @@
-const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v1";
+const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v2";
+const DEFAULT_SYNC_TABLE = "planner_snapshots";
 
 const $ = (id) => document.getElementById(id);
 
@@ -6,6 +7,22 @@ const elements = {
   profileForm: $("profileForm"),
   profileName: $("profileName"),
   todayLabel: $("todayLabel"),
+  installButton: $("installButton"),
+  cloudModeBadge: $("cloudModeBadge"),
+  authStatusTitle: $("authStatusTitle"),
+  authStatusText: $("authStatusText"),
+  authUserEmail: $("authUserEmail"),
+  syncStatusPill: $("syncStatusPill"),
+  authMessage: $("authMessage"),
+  authHint: $("authHint"),
+  authForm: $("authForm"),
+  authEmail: $("authEmail"),
+  authPassword: $("authPassword"),
+  signUpButton: $("signUpButton"),
+  passwordForm: $("passwordForm"),
+  newPassword: $("newPassword"),
+  confirmPassword: $("confirmPassword"),
+  signOutButton: $("signOutButton"),
   goalForm: $("goalForm"),
   goalPicker: $("goalPicker"),
   goalTitle: $("goalTitle"),
@@ -42,6 +59,7 @@ const elements = {
   goalListCalendarWrap: $("goalListCalendarWrap"),
   goalListCalendarDate: $("goalListCalendarDate"),
   goalListStatus: $("goalListStatus"),
+  toggleGoalList: $("toggleGoalList"),
   toggleGoalTableButton: $("toggleGoalTableButton"),
   goalTableWrap: $("goalTableWrap"),
   goalList: $("goalList"),
@@ -60,50 +78,81 @@ const defaultProfile = {
   profileName: "",
 };
 
+function getFreshState() {
+  return {
+    profile: { ...defaultProfile },
+    goals: [],
+    ui: {
+      selectedGoalId: "",
+      goalListCollapsed: false,
+      reportRange: "day",
+      reportPeriod: "",
+    },
+    meta: {
+      updatedAt: new Date().toISOString(),
+      lastSyncedAt: "",
+    },
+  };
+}
+
 const state = loadState();
 
+let deferredInstallPrompt = null;
+let supabaseClient = null;
+let currentUser = null;
+let syncTimer = null;
+let isApplyingRemoteState = false;
+let isOnline = navigator.onLine;
+
+initialize();
+
+function initialize() {
+  elements.goalListCalendarDate.value = toIsoDate(getToday());
+  elements.reportRange.value = state.ui.reportRange || "day";
+  updateCustomRepeatVisibility();
+  updateCalendarVisibility();
+  registerPwa();
+  initializeCloud();
+  wireEvents();
+  render({ skipSync: true });
+}
+
 function loadState() {
+  const fallback = getFreshState();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return {
-        profile: { ...defaultProfile },
-        goals: [],
-        ui: {
-          selectedGoalId: "",
-          goalListCollapsed: false,
-          reportRange: "day",
-          reportPeriod: "",
-        },
-      };
+      return fallback;
     }
     const parsed = JSON.parse(raw);
-    return {
-      profile: { ...defaultProfile, ...(parsed.profile || {}) },
-      goals: Array.isArray(parsed.goals) ? parsed.goals.map(normalizeGoal) : [],
-      ui: {
-        selectedGoalId: parsed.ui?.selectedGoalId || "",
-        goalListCollapsed: Boolean(parsed.ui?.goalListCollapsed),
-        reportRange: parsed.ui?.reportRange || "day",
-        reportPeriod: parsed.ui?.reportPeriod || "",
-      },
-    };
+    return normalizeState(parsed);
   } catch {
-    return {
-      profile: { ...defaultProfile },
-      goals: [],
-      ui: {
-        selectedGoalId: "",
-        goalListCollapsed: false,
-        reportRange: "day",
-        reportPeriod: "",
-      },
-    };
+    return fallback;
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function normalizeState(value) {
+  const fallback = getFreshState();
+  const next = {
+    profile: { ...defaultProfile, ...(value.profile || {}) },
+    goals: Array.isArray(value.goals) ? value.goals.map(normalizeGoal) : [],
+    ui: {
+      selectedGoalId: value.ui?.selectedGoalId || "",
+      goalListCollapsed: Boolean(value.ui?.goalListCollapsed),
+      reportRange: value.ui?.reportRange || "day",
+      reportPeriod: value.ui?.reportPeriod || "",
+    },
+    meta: {
+      updatedAt: value.meta?.updatedAt || new Date().toISOString(),
+      lastSyncedAt: value.meta?.lastSyncedAt || "",
+    },
+  };
+
+  if (!next.goals.some((goal) => goal.id === next.ui.selectedGoalId)) {
+    next.ui.selectedGoalId = "";
+  }
+
+  return { ...fallback, ...next };
 }
 
 function normalizeGoal(goal) {
@@ -141,7 +190,8 @@ function normalizeHistory(goal) {
         status: normalizeStatus(entry.status),
         progress: clampNumber(entry.progress, 0, 100, 0),
       }))
-      .sort((left, right) => new Date(left.date) - new Date(right.date));
+      .sort((left, right) => new Date(left.date) - new Date(right.date))
+      .slice(-120);
   }
 
   return [
@@ -153,19 +203,346 @@ function normalizeHistory(goal) {
   ];
 }
 
+function saveState(options = {}) {
+  state.meta.updatedAt = options.keepTimestamp ? state.meta.updatedAt : new Date().toISOString();
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Could not save planner data locally.", error);
+  }
+
+  if (!options.skipSync) {
+    scheduleCloudSync();
+  }
+}
+
+function registerPwa() {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch((error) => {
+        console.error("Service worker registration failed.", error);
+      });
+    });
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderInstallState();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    renderInstallState();
+    showAuthMessage("The planner is installed on this device.", "success");
+  });
+
+  window.addEventListener("online", () => {
+    isOnline = true;
+    renderAccessState();
+    scheduleCloudSync();
+  });
+
+  window.addEventListener("offline", () => {
+    isOnline = false;
+    renderAccessState();
+  });
+
+  renderInstallState();
+}
+
+function renderInstallState() {
+  elements.installButton.hidden = !deferredInstallPrompt;
+}
+
+async function initializeCloud() {
+  if (!cloudConfigured()) {
+    renderAccessState();
+    return;
+  }
+
+  try {
+    supabaseClient = window.supabase.createClient(
+      window.SUPABASE_CONFIG.url,
+      window.SUPABASE_CONFIG.anonKey,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      },
+    );
+
+    const { data } = await supabaseClient.auth.getSession();
+    currentUser = data?.session?.user || null;
+    renderAccessState();
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      currentUser = session?.user || null;
+      setTimeout(() => {
+        handleAuthStateChange(event, session).catch((error) => {
+          console.error("Auth state update failed.", error);
+        });
+      }, 0);
+    });
+  } catch (error) {
+    console.error("Supabase initialization failed.", error);
+    supabaseClient = null;
+    renderAccessState();
+  }
+}
+
+function cloudConfigured() {
+  return Boolean(
+    window.SUPABASE_CONFIG?.url &&
+      window.SUPABASE_CONFIG?.anonKey &&
+      window.supabase &&
+      typeof window.supabase.createClient === "function",
+  );
+}
+
+function getSyncTable() {
+  return window.SUPABASE_CONFIG?.syncTable || DEFAULT_SYNC_TABLE;
+}
+
+async function handleAuthStateChange(event, session) {
+  if (event === "SIGNED_OUT") {
+    currentUser = null;
+    resetStateToDefaults();
+    showAuthMessage("Signed out. This device is back in local mode.", "success");
+    render({ skipSync: true, keepTimestamp: true });
+    return;
+  }
+
+  if (!session?.user) {
+    renderAccessState();
+    return;
+  }
+
+  currentUser = session.user;
+  renderAccessState();
+  await pullCloudState();
+}
+
+async function pullCloudState() {
+  if (!supabaseClient || !currentUser || !isOnline) {
+    return;
+  }
+
+  setSyncStatus("Checking cloud data...", "cloud");
+
+  const { data, error } = await supabaseClient
+    .from(getSyncTable())
+    .select("planner_state, updated_at")
+    .eq("user_id", currentUser.id)
+    .limit(1);
+
+  if (error) {
+    console.error("Could not load cloud planner data.", error);
+    setSyncStatus("Cloud sync needs table setup", "offline");
+    return;
+  }
+
+  const row = Array.isArray(data) && data.length ? data[0] : null;
+  if (!row?.planner_state) {
+    if (hasMeaningfulData()) {
+      await pushCloudState();
+    } else {
+      setSyncStatus("Cloud is ready", "cloud");
+    }
+    return;
+  }
+
+  const remoteState = normalizeState(row.planner_state);
+  const remoteUpdated = new Date(row.updated_at || remoteState.meta.updatedAt || 0).getTime();
+  const localUpdated = new Date(state.meta.updatedAt || 0).getTime();
+
+  if (!hasMeaningfulData() || remoteUpdated > localUpdated) {
+    applyRemoteState(remoteState, row.updated_at);
+    setSyncStatus("Loaded from cloud", "cloud");
+    showAuthMessage("Your planner data was loaded from the cloud.", "success");
+    return;
+  }
+
+  await pushCloudState();
+}
+
+function applyRemoteState(remoteState, remoteTimestamp) {
+  isApplyingRemoteState = true;
+  try {
+    const normalized = normalizeState(remoteState);
+    Object.assign(state, normalized);
+    state.meta.lastSyncedAt = remoteTimestamp || new Date().toISOString();
+    render({ skipSync: true, keepTimestamp: true });
+  } finally {
+    isApplyingRemoteState = false;
+  }
+}
+
+function scheduleCloudSync() {
+  if (isApplyingRemoteState || !supabaseClient || !currentUser || !isOnline) {
+    return;
+  }
+
+  clearTimeout(syncTimer);
+  setSyncStatus("Sync pending", "cloud");
+  syncTimer = setTimeout(() => {
+    pushCloudState().catch((error) => {
+      console.error("Cloud sync failed.", error);
+      setSyncStatus("Sync failed", "offline");
+    });
+  }, 700);
+}
+
+async function pushCloudState() {
+  if (!supabaseClient || !currentUser || !isOnline) {
+    return;
+  }
+
+  const payload = {
+    user_id: currentUser.id,
+    planner_state: serializeStateForCloud(),
+    updated_at: state.meta.updatedAt,
+  };
+
+  const { error } = await supabaseClient
+    .from(getSyncTable())
+    .upsert(payload, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("Could not save cloud planner data.", error);
+    setSyncStatus("Sync failed", "offline");
+    return;
+  }
+
+  state.meta.lastSyncedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (storageError) {
+    console.error("Could not store synced timestamp locally.", storageError);
+  }
+  setSyncStatus("Synced", "cloud");
+}
+
+function serializeStateForCloud() {
+  return {
+    profile: state.profile,
+    goals: state.goals,
+    ui: {
+      reportRange: state.ui.reportRange,
+      reportPeriod: state.ui.reportPeriod,
+    },
+    meta: {
+      updatedAt: state.meta.updatedAt,
+      lastSyncedAt: state.meta.lastSyncedAt,
+    },
+  };
+}
+
+function hasMeaningfulData() {
+  return Boolean(state.profile.profileName.trim() || state.goals.length);
+}
+
+function resetStateToDefaults() {
+  const fresh = getFreshState();
+  Object.assign(state, fresh);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Could not clear local planner data.", error);
+  }
+}
+
+function renderAccessState() {
+  const cloudReady = cloudConfigured();
+  const signedIn = Boolean(currentUser);
+  const mode = !cloudReady ? "local" : signedIn ? "cloud" : "local";
+  setSyncStatus(
+    !cloudReady
+      ? "Local only"
+      : !signedIn
+        ? "Sign in to sync"
+        : !isOnline
+          ? "Offline"
+          : state.meta.lastSyncedAt
+            ? "Synced"
+            : "Cloud ready",
+    !isOnline ? "offline" : mode,
+  );
+
+  elements.cloudModeBadge.textContent =
+    !cloudReady ? "Local mode" : signedIn ? "Cloud sync on" : "Cloud available";
+  elements.cloudModeBadge.className = `mode-badge mode-badge--${!isOnline ? "offline" : mode}`;
+
+  if (!cloudReady) {
+    elements.authStatusTitle.textContent = "Using local storage on this device";
+    elements.authStatusText.textContent =
+      "Add your Supabase project URL and anon key in supabase-config.js to turn on login and cross-device sync.";
+    elements.authHint.textContent =
+      "After Supabase is connected, people can sign in with email and password on phone or desktop and see the same planner data.";
+    elements.authUserEmail.hidden = true;
+    elements.authForm.hidden = true;
+    elements.passwordForm.hidden = true;
+    return;
+  }
+
+  elements.authForm.hidden = signedIn;
+  elements.passwordForm.hidden = !signedIn;
+  elements.authUserEmail.hidden = !signedIn;
+
+  if (signedIn) {
+    elements.authStatusTitle.textContent = "Signed in and syncing across devices";
+    elements.authStatusText.textContent =
+      "Any goal changes saved here can be loaded on another phone or computer when this same account signs in.";
+    elements.authUserEmail.textContent = currentUser.email || "Signed in user";
+    elements.authHint.textContent =
+      "If you give someone a temporary password in Supabase, they can sign in here first, then change it below.";
+  } else {
+    elements.authStatusTitle.textContent = "Cloud sync is ready";
+    elements.authStatusText.textContent =
+      "Sign in or create an account to save planner data to the cloud and use the same goals on another device.";
+    elements.authUserEmail.hidden = true;
+    elements.authHint.textContent =
+      "Use Create account for new users, or give someone a temporary password from Supabase and let them change it here after sign-in.";
+  }
+}
+
+function setSyncStatus(text, tone) {
+  elements.syncStatusPill.textContent = text;
+  elements.syncStatusPill.className = `pill mode-badge mode-badge--${tone}`;
+}
+
+function showAuthMessage(text, tone = "success") {
+  if (!text) {
+    elements.authMessage.hidden = true;
+    elements.authMessage.textContent = "";
+    elements.authMessage.dataset.tone = "";
+    return;
+  }
+
+  elements.authMessage.hidden = false;
+  elements.authMessage.dataset.tone = tone;
+  elements.authMessage.textContent = text;
+}
+
 function normalizeStatus(status) {
-  return ["not-started", "in-progress", "completed"].includes(status)
-    ? status
-    : "not-started";
+  return ["not-started", "in-progress", "completed"].includes(status) ? status : "not-started";
 }
 
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
   return Math.min(max, Math.max(min, number));
 }
 
 function makeId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
   return `goal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -207,8 +584,7 @@ function addYears(date, amount) {
 }
 
 function startOfWeek(date) {
-  const day = date.getDay();
-  return addDays(date, -day);
+  return addDays(date, -date.getDay());
 }
 
 function endOfWeek(date) {
@@ -263,6 +639,7 @@ function isGoalScheduledOn(goal, date) {
   if (!goal.dueDate) return false;
   const baseDate = dateFromIso(goal.dueDate);
   if (!baseDate || isBeforeDay(date, baseDate)) return false;
+
   if (goal.repeat === "none") return sameDay(baseDate, date);
   if (goal.repeat === "daily") return true;
   if (goal.repeat === "weekly") return dayDiff(baseDate, date) % 7 === 0;
@@ -270,11 +647,7 @@ function isGoalScheduledOn(goal, date) {
     return date.getDate() === baseDate.getDate() && monthDiff(baseDate, date) >= 0;
   }
   if (goal.repeat === "yearly") {
-    return (
-      date.getDate() === baseDate.getDate() &&
-      date.getMonth() === baseDate.getMonth() &&
-      yearDiff(baseDate, date) >= 0
-    );
+    return date.getDate() === baseDate.getDate() && date.getMonth() === baseDate.getMonth() && yearDiff(baseDate, date) >= 0;
   }
   if (goal.repeat === "custom") {
     const every = Math.max(1, goal.repeatInterval || 1);
@@ -295,6 +668,7 @@ function isGoalScheduledOn(goal, date) {
       );
     }
   }
+
   return false;
 }
 
@@ -302,6 +676,7 @@ function getFilterRange() {
   const today = getToday();
   const selectedCalendarDate = dateFromIso(elements.goalListCalendarDate.value) || today;
   const range = elements.goalListRange.value;
+
   if (range === "today") {
     return { start: today, end: today, label: "Today" };
   }
@@ -321,6 +696,7 @@ function getFilterRange() {
   if (range === "calendar") {
     return { start: selectedCalendarDate, end: selectedCalendarDate, label: "Selected date" };
   }
+
   return { start: null, end: null, label: "All goals" };
 }
 
@@ -352,17 +728,37 @@ function firstOccurrenceWithin(goal, start, end) {
   return null;
 }
 
+function syncGoalFromSubGoals(goal) {
+  if (!goal.subGoals.length) {
+    return;
+  }
+
+  const completed = goal.subGoals.filter((item) => item.status === "completed").length;
+  const inProgress = goal.subGoals.filter((item) => item.status === "in-progress").length;
+  goal.progress = Math.round((completed / goal.subGoals.length) * 100);
+
+  if (completed === goal.subGoals.length) {
+    goal.status = "completed";
+    goal.progress = 100;
+    return;
+  }
+
+  goal.status = inProgress > 0 || completed > 0 ? "in-progress" : "not-started";
+}
+
 function getSuccess(goal) {
   if (goal.subGoals.length) {
     const completed = goal.subGoals.filter((item) => item.status === "completed").length;
+    const percent = Math.round((completed / goal.subGoals.length) * 100);
     return {
-      pct: Math.round((completed / goal.subGoals.length) * 100),
-      text: `${Math.round((completed / goal.subGoals.length) * 100)}% (${completed}/${goal.subGoals.length})`,
+      pct: percent,
+      text: `${percent}% (${completed}/${goal.subGoals.length})`,
     };
   }
+  const percent = clampNumber(goal.progress, 0, 100, 0);
   return {
-    pct: clampNumber(goal.progress, 0, 100, 0),
-    text: `${clampNumber(goal.progress, 0, 100, 0)}%`,
+    pct: percent,
+    text: `${percent}%`,
   };
 }
 
@@ -386,12 +782,7 @@ function getRepeatLabel(goal) {
   if (goal.repeat === "monthly") return "Repeats monthly";
   if (goal.repeat === "yearly") return "Repeats yearly";
   if (goal.repeat === "custom") {
-    const unitMap = {
-      day: "days",
-      week: "weeks",
-      month: "months",
-      year: "years",
-    };
+    const unitMap = { day: "days", week: "weeks", month: "months", year: "years" };
     return `Repeats every ${goal.repeatInterval} ${unitMap[goal.repeatUnit] || "days"}`;
   }
   return "One time";
@@ -430,6 +821,7 @@ function formatTime(value) {
 function getFilteredGoals() {
   const { start, end } = getFilterRange();
   const statusFilter = elements.goalListStatus.value;
+
   return [...state.goals]
     .sort(sortGoals)
     .filter((goal) => goalOccursWithin(goal, start, end))
@@ -449,6 +841,7 @@ function matchesStatusFilter(goal, filter) {
 function sortGoals(left, right) {
   const leftDate = dateFromIso(left.dueDate);
   const rightDate = dateFromIso(right.dueDate);
+
   if (leftDate && rightDate && leftDate.getTime() !== rightDate.getTime()) {
     return leftDate - rightDate;
   }
@@ -464,10 +857,6 @@ function selectedGoal() {
 function updateCustomRepeatVisibility() {
   const show = elements.goalRepeat.value === "custom";
   elements.customRepeatWrap.hidden = !show;
-  if (show) {
-    elements.customRepeatWrap.classList.add("custom-repeat-pop");
-    setTimeout(() => elements.customRepeatWrap.classList.remove("custom-repeat-pop"), 240);
-  }
 }
 
 function renderProfile() {
@@ -485,6 +874,7 @@ function renderGoalPicker() {
       }),
     )
     .join("");
+
   elements.goalPicker.innerHTML = options;
   elements.goalPicker.value = current;
 }
@@ -535,7 +925,7 @@ function renderSubGoals(goal) {
 
   const rows = goal.subGoals
     .slice()
-    .sort((left, right) => sortGoals(left, right))
+    .sort(sortGoals)
     .map(
       (subGoal) => `
         <div class="subgoal-row">
@@ -585,12 +975,8 @@ function renderStats() {
   elements.totalGoals.textContent = String(allGoals.length);
   elements.todayGoals.textContent = String(todayGoals.length);
   elements.upcomingGoals.textContent = String(upcomingGoals.length);
-  elements.todayCompletedGoals.textContent = String(
-    todayGoals.filter((goal) => goal.status === "completed").length,
-  );
-  elements.todayInProgressGoals.textContent = String(
-    todayGoals.filter((goal) => goal.status === "in-progress").length,
-  );
+  elements.todayCompletedGoals.textContent = String(todayGoals.filter((goal) => goal.status === "completed").length);
+  elements.todayInProgressGoals.textContent = String(todayGoals.filter((goal) => goal.status === "in-progress").length);
   elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
 
   setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, percentFromGoals(todayGoals));
@@ -628,7 +1014,10 @@ function renderGoalList() {
           return `
             <article class="goal-table-row">
               <div class="goal-table-cell goal-table-title">${escapeHtml(goal.title)}</div>
-              <div class="goal-table-cell">${occurrence ? formatDate(occurrence) : formatDate(goal.dueDate)}</div>
+              <div class="goal-table-cell">
+                ${occurrence ? formatDate(occurrence) : formatDate(goal.dueDate)}
+                ${goal.time ? `<div class="goal-table-notes">${escapeHtml(formatTime(goal.time))}</div>` : ""}
+              </div>
               <div class="goal-table-cell"><span class="pill">${statusLabel(goal.status)}</span></div>
               <div class="goal-table-cell">${goal.progress}%</div>
               <div class="goal-table-cell">${success.text}</div>
@@ -695,11 +1084,11 @@ function renderReports() {
           ? "Monthly view"
           : "Yearly view";
   elements.trendChart.innerHTML = trendBars.join("");
-
 }
 
 function buildReportPeriods(range) {
   const today = getToday();
+
   if (range === "day") {
     return Array.from({ length: 7 }, (_, index) => {
       const date = addDays(today, index - 6);
@@ -711,6 +1100,7 @@ function buildReportPeriods(range) {
       };
     });
   }
+
   if (range === "week") {
     return Array.from({ length: 6 }, (_, index) => {
       const date = addDays(startOfWeek(today), (index - 5) * 7);
@@ -722,6 +1112,7 @@ function buildReportPeriods(range) {
       };
     });
   }
+
   if (range === "month") {
     return Array.from({ length: 6 }, (_, index) => {
       const date = addMonths(startOfMonth(today), index - 5);
@@ -733,6 +1124,7 @@ function buildReportPeriods(range) {
       };
     });
   }
+
   return Array.from({ length: 5 }, (_, index) => {
     const year = today.getFullYear() - 4 + index;
     const date = new Date(year, 0, 1);
@@ -756,13 +1148,13 @@ function buildTrendBars(range) {
         ? new Intl.DateTimeFormat("en-CA", { weekday: "short" }).format(period.start)
         : range === "week"
           ? new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" }).format(period.start)
-        : range === "month"
-          ? new Intl.DateTimeFormat("en-CA", { month: "short" }).format(period.start)
-          : period.label;
-    const topLabel = `${percent}%`;
+          : range === "month"
+            ? new Intl.DateTimeFormat("en-CA", { month: "short" }).format(period.start)
+            : period.label;
+
     return `
       <div class="chart-col">
-        <div class="chart-value">${topLabel}</div>
+        <div class="chart-value">${percent}%</div>
         <div class="chart-bar-wrap">
           ${goals.length
             ? `<div class="chart-bar ${barClass}" style="height:${Math.max(8, percent)}%"></div>`
@@ -785,18 +1177,6 @@ function renderEmptyReport() {
   ].join("");
   elements.chartCaption.textContent = "Daily view";
   elements.trendChart.innerHTML = '<div class="empty-state">No data yet.</div>';
-}
-
-function getGoalSnapshotForPeriod(goal, start, end) {
-  if (!Array.isArray(goal.history) || !goal.history.length) return null;
-  const entries = goal.history
-    .filter((entry) => {
-      const date = new Date(entry.date);
-      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      return !isBeforeDay(normalized, start) && !isAfterDay(normalized, end);
-    })
-    .sort((left, right) => new Date(left.date) - new Date(right.date));
-  return entries[entries.length - 1] || null;
 }
 
 function legendItem(label, value, color) {
@@ -824,10 +1204,7 @@ function statusOptions(selected) {
     { value: "in-progress", label: "In progress" },
     { value: "completed", label: "Completed" },
   ]
-    .map(
-      (item) =>
-        `<option value="${item.value}"${item.value === selected ? " selected" : ""}>${item.label}</option>`,
-    )
+    .map((item) => `<option value="${item.value}"${item.value === selected ? " selected" : ""}>${item.label}</option>`)
     .join("");
 }
 
@@ -840,8 +1217,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function render() {
+function render(options = {}) {
+  state.goals.forEach(syncGoalFromSubGoals);
   renderProfile();
+  renderAccessState();
   renderGoalPicker();
   renderSelectedGoal();
   renderStats();
@@ -849,7 +1228,10 @@ function render() {
   renderReports();
   updateTableVisibility();
   updateCalendarVisibility();
-  saveState();
+  saveState({
+    skipSync: options.skipSync,
+    keepTimestamp: options.keepTimestamp,
+  });
 }
 
 function updateTableVisibility() {
@@ -863,22 +1245,131 @@ function updateCalendarVisibility() {
 }
 
 function wireEvents() {
+  elements.installButton.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    renderInstallState();
+  });
+
   elements.profileForm.addEventListener("input", () => {
     state.profile = {
-      profileName: elements.profileName.value,
+      profileName: elements.profileName.value.trim(),
     };
     render();
   });
 
-  elements.goalPicker.addEventListener("change", () => {
-    state.ui.selectedGoalId = elements.goalPicker.value;
-    render();
+  elements.authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient) {
+      showAuthMessage("Cloud login is not active yet. Add your Supabase keys first.", "error");
+      return;
+    }
+
+    const email = elements.authEmail.value.trim();
+    const password = elements.authPassword.value;
+    if (!email || !password) {
+      showAuthMessage("Enter both email and password.", "error");
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showAuthMessage(error.message || "Sign-in failed.", "error");
+      return;
+    }
+
+    elements.authPassword.value = "";
+    showAuthMessage("Signed in. Your planner will sync across devices.", "success");
   });
 
-  elements.goalRepeat.addEventListener("change", updateCustomRepeatVisibility);
+  elements.signUpButton.addEventListener("click", async () => {
+    if (!supabaseClient) {
+      showAuthMessage("Cloud login is not active yet. Add your Supabase keys first.", "error");
+      return;
+    }
+
+    const email = elements.authEmail.value.trim();
+    const password = elements.authPassword.value;
+    if (!email || !password) {
+      showAuthMessage("Enter an email and password before creating the account.", "error");
+      return;
+    }
+    if (password.length < 8) {
+      showAuthMessage("Use a password with at least 8 characters.", "error");
+      return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      showAuthMessage(error.message || "Account creation failed.", "error");
+      return;
+    }
+
+    if (!data.session) {
+      showAuthMessage("Account created. Check your email if your Supabase project requires confirmation.", "success");
+    } else {
+      showAuthMessage("Account created and signed in.", "success");
+    }
+  });
+
+  elements.passwordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient || !currentUser) {
+      showAuthMessage("Sign in first before changing the password.", "error");
+      return;
+    }
+
+    const password = elements.newPassword.value;
+    const confirmPassword = elements.confirmPassword.value;
+    if (!password || !confirmPassword) {
+      showAuthMessage("Enter the new password in both fields.", "error");
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAuthMessage("The passwords do not match.", "error");
+      return;
+    }
+    if (password.length < 8) {
+      showAuthMessage("Use a password with at least 8 characters.", "error");
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) {
+      showAuthMessage(error.message || "Password update failed.", "error");
+      return;
+    }
+
+    elements.passwordForm.reset();
+    showAuthMessage("Password updated.", "success");
+  });
+
+  elements.signOutButton.addEventListener("click", async () => {
+    if (!supabaseClient) return;
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      showAuthMessage(error.message || "Sign-out failed.", "error");
+    }
+  });
+
+  elements.goalPicker.addEventListener("change", () => {
+    state.ui.selectedGoalId = elements.goalPicker.value;
+    render({ keepTimestamp: true });
+  });
+
+  elements.goalRepeat.addEventListener("change", () => {
+    updateCustomRepeatVisibility();
+  });
 
   elements.goalForm.addEventListener("submit", (event) => {
     event.preventDefault();
+
     const goal = selectedGoal();
     const payload = {
       title: elements.goalTitle.value.trim(),
@@ -888,17 +1379,27 @@ function wireEvents() {
       repeat: elements.goalRepeat.value,
       repeatInterval: clampNumber(elements.goalRepeatInterval.value, 1, 999, 1),
       repeatUnit: elements.goalRepeatUnit.value,
+      updatedAt: new Date().toISOString(),
     };
 
-    if (!payload.title) return;
+    if (!payload.title) {
+      return;
+    }
+
+    if (payload.repeat !== "custom") {
+      payload.repeatInterval = 1;
+      payload.repeatUnit = "day";
+    }
 
     if (goal) {
-      Object.assign(goal, payload, { updatedAt: new Date().toISOString() });
+      Object.assign(goal, payload);
+      recordGoalHistory(goal);
     } else {
       const createdGoal = normalizeGoal({
         ...payload,
         status: "not-started",
         progress: 0,
+        createdAt: new Date().toISOString(),
       });
       state.goals.push(createdGoal);
     }
@@ -913,9 +1414,15 @@ function wireEvents() {
     event.preventDefault();
     const goal = selectedGoal();
     if (!goal) return;
-    goal.status = elements.updateGoalStatus.value;
+
+    goal.status = normalizeStatus(elements.updateGoalStatus.value);
     goal.progress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
-    if (goal.status === "completed") goal.progress = 100;
+    if (goal.status === "completed") {
+      goal.progress = 100;
+    }
+    if (goal.status === "not-started") {
+      goal.progress = 0;
+    }
     goal.updatedAt = new Date().toISOString();
     recordGoalHistory(goal);
     render();
@@ -925,33 +1432,45 @@ function wireEvents() {
     event.preventDefault();
     const goal = selectedGoal();
     if (!goal) return;
+
+    const title = elements.subGoalTitle.value.trim();
+    const dueDate = elements.subGoalDate.value;
+    if (!title || !dueDate) return;
+
     goal.subGoals.push({
       id: makeId(),
-      title: elements.subGoalTitle.value.trim(),
-      dueDate: elements.subGoalDate.value,
+      title,
+      dueDate,
       status: "not-started",
       createdAt: new Date().toISOString(),
     });
-    elements.subGoalTitle.value = "";
-    elements.subGoalDate.value = "";
+    syncGoalFromSubGoals(goal);
+    recordGoalHistory(goal);
+    elements.subGoalForm.reset();
     render();
   });
 
   elements.goalListRange.addEventListener("change", () => {
     updateCalendarVisibility();
-    renderGoalList();
+    render({ keepTimestamp: true, skipSync: true });
   });
 
-  elements.goalListCalendarDate.addEventListener("change", renderGoalList);
-  elements.goalListStatus.addEventListener("change", renderGoalList);
+  elements.goalListCalendarDate.addEventListener("change", () => render({ keepTimestamp: true, skipSync: true }));
+  elements.goalListStatus.addEventListener("change", () => render({ keepTimestamp: true, skipSync: true }));
+
+  elements.toggleGoalList.addEventListener("click", () => {
+    state.ui.goalListCollapsed = false;
+    render({ keepTimestamp: true, skipSync: true });
+    document.getElementById("allGoalsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   elements.toggleGoalTableButton.addEventListener("click", () => {
     state.ui.goalListCollapsed = !state.ui.goalListCollapsed;
-    render();
+    render({ keepTimestamp: true, skipSync: true });
   });
 
   elements.resetButton.addEventListener("click", () => {
-    if (!confirm("Reset all goals? This will clear the rebuilt dashboard only.")) return;
+    if (!confirm("Reset all goals?")) return;
     state.goals = [];
     state.ui.selectedGoalId = "";
     render();
@@ -967,36 +1486,41 @@ function wireEvents() {
     if (goalId && subGoalId) {
       const goal = state.goals.find((item) => item.id === goalId);
       const subGoal = goal?.subGoals.find((item) => item.id === subGoalId);
-      if (!subGoal) return;
+      if (!subGoal || !goal) return;
+
       subGoal.status = normalizeStatus(target.value);
+      syncGoalFromSubGoals(goal);
       recordGoalHistory(goal);
       render();
       return;
     }
 
-    if (goalId) {
-      const goal = state.goals.find((item) => item.id === goalId);
-      if (!goal) return;
-      goal.status = normalizeStatus(target.value);
-      if (goal.status === "completed") {
-        goal.progress = 100;
-      }
-      recordGoalHistory(goal);
-      render();
+    if (!goalId) return;
+    const goal = state.goals.find((item) => item.id === goalId);
+    if (!goal) return;
+
+    goal.status = normalizeStatus(target.value);
+    if (goal.status === "completed") {
+      goal.progress = 100;
     }
+    if (goal.status === "not-started") {
+      goal.progress = 0;
+    }
+    goal.updatedAt = new Date().toISOString();
+    recordGoalHistory(goal);
+    render();
   });
 
   elements.goalList.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (!target.dataset.removeGoal) return;
 
-    if (target.dataset.removeGoal) {
-      state.goals = state.goals.filter((goal) => goal.id !== target.dataset.removeGoal);
-      if (state.ui.selectedGoalId === target.dataset.removeGoal) {
-        state.ui.selectedGoalId = "";
-      }
-      render();
+    state.goals = state.goals.filter((goal) => goal.id !== target.dataset.removeGoal);
+    if (state.ui.selectedGoalId === target.dataset.removeGoal) {
+      state.ui.selectedGoalId = "";
     }
+    render();
   });
 
   document.querySelectorAll("[data-target='allGoalsSection']").forEach((button) => {
@@ -1004,32 +1528,24 @@ function wireEvents() {
       const range = button.getAttribute("data-range");
       const status = button.getAttribute("data-status");
       state.ui.goalListCollapsed = false;
-      if (range) elements.goalListRange.value = range;
-      if (status) {
-        elements.goalListStatus.value = status;
-      } else {
-        elements.goalListStatus.value = "all";
+      if (range) {
+        elements.goalListRange.value = range;
       }
+      elements.goalListStatus.value = status || "all";
       updateCalendarVisibility();
-      render();
+      render({ keepTimestamp: true, skipSync: true });
+      document.getElementById("allGoalsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
   elements.reportRange.addEventListener("change", () => {
     state.ui.reportRange = elements.reportRange.value;
     state.ui.reportPeriod = "";
-    render();
+    render({ keepTimestamp: true, skipSync: true });
   });
 
   elements.reportPeriod.addEventListener("change", () => {
     state.ui.reportPeriod = elements.reportPeriod.value;
-    renderReports();
-    saveState();
+    render({ keepTimestamp: true, skipSync: true });
   });
 }
-
-wireEvents();
-elements.reportRange.value = state.ui.reportRange || "day";
-elements.goalListCalendarDate.value = toIsoDate(getToday());
-updateCustomRepeatVisibility();
-render();
