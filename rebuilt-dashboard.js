@@ -1,28 +1,15 @@
-const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v2";
-const DEFAULT_SYNC_TABLE = "planner_snapshots";
+const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v3";
 
 const $ = (id) => document.getElementById(id);
 
 const elements = {
+  viewTabs: Array.from(document.querySelectorAll("[data-view-tab]")),
+  viewPanels: Array.from(document.querySelectorAll("[data-view-panel]")),
   profileForm: $("profileForm"),
   profileName: $("profileName"),
   todayLabel: $("todayLabel"),
   installButton: $("installButton"),
-  cloudModeBadge: $("cloudModeBadge"),
-  authStatusTitle: $("authStatusTitle"),
-  authStatusText: $("authStatusText"),
-  authUserEmail: $("authUserEmail"),
-  syncStatusPill: $("syncStatusPill"),
-  authMessage: $("authMessage"),
-  authHint: $("authHint"),
-  authForm: $("authForm"),
-  authEmail: $("authEmail"),
-  authPassword: $("authPassword"),
-  signUpButton: $("signUpButton"),
-  passwordForm: $("passwordForm"),
-  newPassword: $("newPassword"),
-  confirmPassword: $("confirmPassword"),
-  signOutButton: $("signOutButton"),
+  installMessage: $("installMessage"),
   goalForm: $("goalForm"),
   goalPicker: $("goalPicker"),
   goalTitle: $("goalTitle"),
@@ -83,6 +70,7 @@ function getFreshState() {
     profile: { ...defaultProfile },
     goals: [],
     ui: {
+      activeView: "home",
       selectedGoalId: "",
       goalListCollapsed: false,
       reportRange: "day",
@@ -90,19 +78,12 @@ function getFreshState() {
     },
     meta: {
       updatedAt: new Date().toISOString(),
-      lastSyncedAt: "",
     },
   };
 }
 
 const state = loadState();
-
 let deferredInstallPrompt = null;
-let supabaseClient = null;
-let currentUser = null;
-let syncTimer = null;
-let isApplyingRemoteState = false;
-let isOnline = navigator.onLine;
 
 initialize();
 
@@ -112,9 +93,8 @@ function initialize() {
   updateCustomRepeatVisibility();
   updateCalendarVisibility();
   registerPwa();
-  initializeCloud();
   wireEvents();
-  render({ skipSync: true });
+  render({ skipSave: true });
 }
 
 function loadState() {
@@ -124,6 +104,7 @@ function loadState() {
     if (!raw) {
       return fallback;
     }
+
     const parsed = JSON.parse(raw);
     return normalizeState(parsed);
   } catch {
@@ -137,6 +118,7 @@ function normalizeState(value) {
     profile: { ...defaultProfile, ...(value.profile || {}) },
     goals: Array.isArray(value.goals) ? value.goals.map(normalizeGoal) : [],
     ui: {
+      activeView: value.ui?.activeView || "home",
       selectedGoalId: value.ui?.selectedGoalId || "",
       goalListCollapsed: Boolean(value.ui?.goalListCollapsed),
       reportRange: value.ui?.reportRange || "day",
@@ -144,15 +126,58 @@ function normalizeState(value) {
     },
     meta: {
       updatedAt: value.meta?.updatedAt || new Date().toISOString(),
-      lastSyncedAt: value.meta?.lastSyncedAt || "",
     },
   };
 
   if (!next.goals.some((goal) => goal.id === next.ui.selectedGoalId)) {
     next.ui.selectedGoalId = "";
   }
+  if (!["home", "planner", "goals", "report"].includes(next.ui.activeView)) {
+    next.ui.activeView = "home";
+  }
 
   return { ...fallback, ...next };
+}
+
+function saveState(options = {}) {
+  state.meta.updatedAt = options.keepTimestamp ? state.meta.updatedAt : new Date().toISOString();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Could not save planner data.", error);
+  }
+}
+
+function registerPwa() {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch((error) => {
+        console.error("Service worker registration failed.", error);
+      });
+    });
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderInstallState();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    renderInstallState();
+  });
+
+  renderInstallState();
+}
+
+function renderInstallState() {
+  elements.installButton.hidden = !deferredInstallPrompt;
+  if (elements.installMessage) {
+    elements.installMessage.textContent = deferredInstallPrompt
+      ? "Tap Install app to save this planner to your phone home screen."
+      : "Use your browser menu to install or add this planner to your home screen.";
+  }
 }
 
 function normalizeGoal(goal) {
@@ -201,330 +226,6 @@ function normalizeHistory(goal) {
       progress: clampNumber(goal.progress, 0, 100, 0),
     },
   ];
-}
-
-function saveState(options = {}) {
-  state.meta.updatedAt = options.keepTimestamp ? state.meta.updatedAt : new Date().toISOString();
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (error) {
-    console.error("Could not save planner data locally.", error);
-  }
-
-  if (!options.skipSync) {
-    scheduleCloudSync();
-  }
-}
-
-function registerPwa() {
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch((error) => {
-        console.error("Service worker registration failed.", error);
-      });
-    });
-  }
-
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-    renderInstallState();
-  });
-
-  window.addEventListener("appinstalled", () => {
-    deferredInstallPrompt = null;
-    renderInstallState();
-    showAuthMessage("The planner is installed on this device.", "success");
-  });
-
-  window.addEventListener("online", () => {
-    isOnline = true;
-    renderAccessState();
-    scheduleCloudSync();
-  });
-
-  window.addEventListener("offline", () => {
-    isOnline = false;
-    renderAccessState();
-  });
-
-  renderInstallState();
-}
-
-function renderInstallState() {
-  elements.installButton.hidden = !deferredInstallPrompt;
-}
-
-async function initializeCloud() {
-  if (!cloudConfigured()) {
-    renderAccessState();
-    return;
-  }
-
-  try {
-    supabaseClient = window.supabase.createClient(
-      window.SUPABASE_CONFIG.url,
-      window.SUPABASE_CONFIG.anonKey,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-        },
-      },
-    );
-
-    const { data } = await supabaseClient.auth.getSession();
-    currentUser = data?.session?.user || null;
-    renderAccessState();
-
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      currentUser = session?.user || null;
-      setTimeout(() => {
-        handleAuthStateChange(event, session).catch((error) => {
-          console.error("Auth state update failed.", error);
-        });
-      }, 0);
-    });
-  } catch (error) {
-    console.error("Supabase initialization failed.", error);
-    supabaseClient = null;
-    renderAccessState();
-  }
-}
-
-function cloudConfigured() {
-  return Boolean(
-    window.SUPABASE_CONFIG?.url &&
-      window.SUPABASE_CONFIG?.anonKey &&
-      window.supabase &&
-      typeof window.supabase.createClient === "function",
-  );
-}
-
-function getSyncTable() {
-  return window.SUPABASE_CONFIG?.syncTable || DEFAULT_SYNC_TABLE;
-}
-
-async function handleAuthStateChange(event, session) {
-  if (event === "SIGNED_OUT") {
-    currentUser = null;
-    resetStateToDefaults();
-    showAuthMessage("Signed out. This device is back in local mode.", "success");
-    render({ skipSync: true, keepTimestamp: true });
-    return;
-  }
-
-  if (!session?.user) {
-    renderAccessState();
-    return;
-  }
-
-  currentUser = session.user;
-  renderAccessState();
-  await pullCloudState();
-}
-
-async function pullCloudState() {
-  if (!supabaseClient || !currentUser || !isOnline) {
-    return;
-  }
-
-  setSyncStatus("Checking cloud data...", "cloud");
-
-  const { data, error } = await supabaseClient
-    .from(getSyncTable())
-    .select("planner_state, updated_at")
-    .eq("user_id", currentUser.id)
-    .limit(1);
-
-  if (error) {
-    console.error("Could not load cloud planner data.", error);
-    setSyncStatus("Cloud sync needs table setup", "offline");
-    return;
-  }
-
-  const row = Array.isArray(data) && data.length ? data[0] : null;
-  if (!row?.planner_state) {
-    if (hasMeaningfulData()) {
-      await pushCloudState();
-    } else {
-      setSyncStatus("Cloud is ready", "cloud");
-    }
-    return;
-  }
-
-  const remoteState = normalizeState(row.planner_state);
-  const remoteUpdated = new Date(row.updated_at || remoteState.meta.updatedAt || 0).getTime();
-  const localUpdated = new Date(state.meta.updatedAt || 0).getTime();
-
-  if (!hasMeaningfulData() || remoteUpdated > localUpdated) {
-    applyRemoteState(remoteState, row.updated_at);
-    setSyncStatus("Loaded from cloud", "cloud");
-    showAuthMessage("Your planner data was loaded from the cloud.", "success");
-    return;
-  }
-
-  await pushCloudState();
-}
-
-function applyRemoteState(remoteState, remoteTimestamp) {
-  isApplyingRemoteState = true;
-  try {
-    const normalized = normalizeState(remoteState);
-    Object.assign(state, normalized);
-    state.meta.lastSyncedAt = remoteTimestamp || new Date().toISOString();
-    render({ skipSync: true, keepTimestamp: true });
-  } finally {
-    isApplyingRemoteState = false;
-  }
-}
-
-function scheduleCloudSync() {
-  if (isApplyingRemoteState || !supabaseClient || !currentUser || !isOnline) {
-    return;
-  }
-
-  clearTimeout(syncTimer);
-  setSyncStatus("Sync pending", "cloud");
-  syncTimer = setTimeout(() => {
-    pushCloudState().catch((error) => {
-      console.error("Cloud sync failed.", error);
-      setSyncStatus("Sync failed", "offline");
-    });
-  }, 700);
-}
-
-async function pushCloudState() {
-  if (!supabaseClient || !currentUser || !isOnline) {
-    return;
-  }
-
-  const payload = {
-    user_id: currentUser.id,
-    planner_state: serializeStateForCloud(),
-    updated_at: state.meta.updatedAt,
-  };
-
-  const { error } = await supabaseClient
-    .from(getSyncTable())
-    .upsert(payload, { onConflict: "user_id" });
-
-  if (error) {
-    console.error("Could not save cloud planner data.", error);
-    setSyncStatus("Sync failed", "offline");
-    return;
-  }
-
-  state.meta.lastSyncedAt = new Date().toISOString();
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (storageError) {
-    console.error("Could not store synced timestamp locally.", storageError);
-  }
-  setSyncStatus("Synced", "cloud");
-}
-
-function serializeStateForCloud() {
-  return {
-    profile: state.profile,
-    goals: state.goals,
-    ui: {
-      reportRange: state.ui.reportRange,
-      reportPeriod: state.ui.reportPeriod,
-    },
-    meta: {
-      updatedAt: state.meta.updatedAt,
-      lastSyncedAt: state.meta.lastSyncedAt,
-    },
-  };
-}
-
-function hasMeaningfulData() {
-  return Boolean(state.profile.profileName.trim() || state.goals.length);
-}
-
-function resetStateToDefaults() {
-  const fresh = getFreshState();
-  Object.assign(state, fresh);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (error) {
-    console.error("Could not clear local planner data.", error);
-  }
-}
-
-function renderAccessState() {
-  const cloudReady = cloudConfigured();
-  const signedIn = Boolean(currentUser);
-  const mode = !cloudReady ? "local" : signedIn ? "cloud" : "local";
-  setSyncStatus(
-    !cloudReady
-      ? "Local only"
-      : !signedIn
-        ? "Sign in to sync"
-        : !isOnline
-          ? "Offline"
-          : state.meta.lastSyncedAt
-            ? "Synced"
-            : "Cloud ready",
-    !isOnline ? "offline" : mode,
-  );
-
-  elements.cloudModeBadge.textContent =
-    !cloudReady ? "Local mode" : signedIn ? "Cloud sync on" : "Cloud available";
-  elements.cloudModeBadge.className = `mode-badge mode-badge--${!isOnline ? "offline" : mode}`;
-
-  if (!cloudReady) {
-    elements.authStatusTitle.textContent = "Using local storage on this device";
-    elements.authStatusText.textContent =
-      "Add your Supabase project URL and anon key in supabase-config.js to turn on login and cross-device sync.";
-    elements.authHint.textContent =
-      "After Supabase is connected, people can sign in with email and password on phone or desktop and see the same planner data.";
-    elements.authUserEmail.hidden = true;
-    elements.authForm.hidden = true;
-    elements.passwordForm.hidden = true;
-    return;
-  }
-
-  elements.authForm.hidden = signedIn;
-  elements.passwordForm.hidden = !signedIn;
-  elements.authUserEmail.hidden = !signedIn;
-
-  if (signedIn) {
-    elements.authStatusTitle.textContent = "Signed in and syncing across devices";
-    elements.authStatusText.textContent =
-      "Any goal changes saved here can be loaded on another phone or computer when this same account signs in.";
-    elements.authUserEmail.textContent = currentUser.email || "Signed in user";
-    elements.authHint.textContent =
-      "If you give someone a temporary password in Supabase, they can sign in here first, then change it below.";
-  } else {
-    elements.authStatusTitle.textContent = "Cloud sync is ready";
-    elements.authStatusText.textContent =
-      "Sign in or create an account to save planner data to the cloud and use the same goals on another device.";
-    elements.authUserEmail.hidden = true;
-    elements.authHint.textContent =
-      "Use Create account for new users, or give someone a temporary password from Supabase and let them change it here after sign-in.";
-  }
-}
-
-function setSyncStatus(text, tone) {
-  elements.syncStatusPill.textContent = text;
-  elements.syncStatusPill.className = `pill mode-badge mode-badge--${tone}`;
-}
-
-function showAuthMessage(text, tone = "success") {
-  if (!text) {
-    elements.authMessage.hidden = true;
-    elements.authMessage.textContent = "";
-    elements.authMessage.dataset.tone = "";
-    return;
-  }
-
-  elements.authMessage.hidden = false;
-  elements.authMessage.dataset.tone = tone;
-  elements.authMessage.textContent = text;
 }
 
 function normalizeStatus(status) {
@@ -855,13 +556,24 @@ function selectedGoal() {
 }
 
 function updateCustomRepeatVisibility() {
-  const show = elements.goalRepeat.value === "custom";
-  elements.customRepeatWrap.hidden = !show;
+  elements.customRepeatWrap.hidden = elements.goalRepeat.value !== "custom";
 }
 
 function renderProfile() {
   elements.profileName.value = state.profile.profileName || "";
   elements.todayLabel.textContent = formatLongDate(getToday());
+}
+
+function renderViewState() {
+  elements.viewTabs.forEach((button) => {
+    const isActive = button.dataset.viewTab === state.ui.activeView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  elements.viewPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.viewPanel !== state.ui.activeView;
+  });
 }
 
 function renderGoalPicker() {
@@ -1220,7 +932,7 @@ function escapeHtml(value) {
 function render(options = {}) {
   state.goals.forEach(syncGoalFromSubGoals);
   renderProfile();
-  renderAccessState();
+  renderViewState();
   renderGoalPicker();
   renderSelectedGoal();
   renderStats();
@@ -1228,10 +940,10 @@ function render(options = {}) {
   renderReports();
   updateTableVisibility();
   updateCalendarVisibility();
-  saveState({
-    skipSync: options.skipSync,
-    keepTimestamp: options.keepTimestamp,
-  });
+
+  if (!options.skipSave) {
+    saveState({ keepTimestamp: options.keepTimestamp });
+  }
 }
 
 function updateTableVisibility() {
@@ -1260,102 +972,12 @@ function wireEvents() {
     render();
   });
 
-  elements.authForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!supabaseClient) {
-      showAuthMessage("Cloud login is not active yet. Add your Supabase keys first.", "error");
-      return;
-    }
-
-    const email = elements.authEmail.value.trim();
-    const password = elements.authPassword.value;
-    if (!email || !password) {
-      showAuthMessage("Enter both email and password.", "error");
-      return;
-    }
-
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) {
-      showAuthMessage(error.message || "Sign-in failed.", "error");
-      return;
-    }
-
-    elements.authPassword.value = "";
-    showAuthMessage("Signed in. Your planner will sync across devices.", "success");
-  });
-
-  elements.signUpButton.addEventListener("click", async () => {
-    if (!supabaseClient) {
-      showAuthMessage("Cloud login is not active yet. Add your Supabase keys first.", "error");
-      return;
-    }
-
-    const email = elements.authEmail.value.trim();
-    const password = elements.authPassword.value;
-    if (!email || !password) {
-      showAuthMessage("Enter an email and password before creating the account.", "error");
-      return;
-    }
-    if (password.length < 8) {
-      showAuthMessage("Use a password with at least 8 characters.", "error");
-      return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
+  elements.viewTabs.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.ui.activeView = button.dataset.viewTab;
+      render({ keepTimestamp: true });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
-
-    if (error) {
-      showAuthMessage(error.message || "Account creation failed.", "error");
-      return;
-    }
-
-    if (!data.session) {
-      showAuthMessage("Account created. Check your email if your Supabase project requires confirmation.", "success");
-    } else {
-      showAuthMessage("Account created and signed in.", "success");
-    }
-  });
-
-  elements.passwordForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!supabaseClient || !currentUser) {
-      showAuthMessage("Sign in first before changing the password.", "error");
-      return;
-    }
-
-    const password = elements.newPassword.value;
-    const confirmPassword = elements.confirmPassword.value;
-    if (!password || !confirmPassword) {
-      showAuthMessage("Enter the new password in both fields.", "error");
-      return;
-    }
-    if (password !== confirmPassword) {
-      showAuthMessage("The passwords do not match.", "error");
-      return;
-    }
-    if (password.length < 8) {
-      showAuthMessage("Use a password with at least 8 characters.", "error");
-      return;
-    }
-
-    const { error } = await supabaseClient.auth.updateUser({ password });
-    if (error) {
-      showAuthMessage(error.message || "Password update failed.", "error");
-      return;
-    }
-
-    elements.passwordForm.reset();
-    showAuthMessage("Password updated.", "success");
-  });
-
-  elements.signOutButton.addEventListener("click", async () => {
-    if (!supabaseClient) return;
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) {
-      showAuthMessage(error.message || "Sign-out failed.", "error");
-    }
   });
 
   elements.goalPicker.addEventListener("change", () => {
@@ -1363,9 +985,7 @@ function wireEvents() {
     render({ keepTimestamp: true });
   });
 
-  elements.goalRepeat.addEventListener("change", () => {
-    updateCustomRepeatVisibility();
-  });
+  elements.goalRepeat.addEventListener("change", updateCustomRepeatVisibility);
 
   elements.goalForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1382,9 +1002,7 @@ function wireEvents() {
       updatedAt: new Date().toISOString(),
     };
 
-    if (!payload.title) {
-      return;
-    }
+    if (!payload.title) return;
 
     if (payload.repeat !== "custom") {
       payload.repeatInterval = 1;
@@ -1417,12 +1035,8 @@ function wireEvents() {
 
     goal.status = normalizeStatus(elements.updateGoalStatus.value);
     goal.progress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
-    if (goal.status === "completed") {
-      goal.progress = 100;
-    }
-    if (goal.status === "not-started") {
-      goal.progress = 0;
-    }
+    if (goal.status === "completed") goal.progress = 100;
+    if (goal.status === "not-started") goal.progress = 0;
     goal.updatedAt = new Date().toISOString();
     recordGoalHistory(goal);
     render();
@@ -1452,21 +1066,22 @@ function wireEvents() {
 
   elements.goalListRange.addEventListener("change", () => {
     updateCalendarVisibility();
-    render({ keepTimestamp: true, skipSync: true });
+    render({ keepTimestamp: true, skipSave: true });
   });
 
-  elements.goalListCalendarDate.addEventListener("change", () => render({ keepTimestamp: true, skipSync: true }));
-  elements.goalListStatus.addEventListener("change", () => render({ keepTimestamp: true, skipSync: true }));
+  elements.goalListCalendarDate.addEventListener("change", () => render({ keepTimestamp: true, skipSave: true }));
+  elements.goalListStatus.addEventListener("change", () => render({ keepTimestamp: true, skipSave: true }));
 
   elements.toggleGoalList.addEventListener("click", () => {
+    state.ui.activeView = "goals";
     state.ui.goalListCollapsed = false;
-    render({ keepTimestamp: true, skipSync: true });
+    render({ keepTimestamp: true, skipSave: true });
     document.getElementById("allGoalsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   elements.toggleGoalTableButton.addEventListener("click", () => {
     state.ui.goalListCollapsed = !state.ui.goalListCollapsed;
-    render({ keepTimestamp: true, skipSync: true });
+    render({ keepTimestamp: true, skipSave: true });
   });
 
   elements.resetButton.addEventListener("click", () => {
@@ -1500,12 +1115,8 @@ function wireEvents() {
     if (!goal) return;
 
     goal.status = normalizeStatus(target.value);
-    if (goal.status === "completed") {
-      goal.progress = 100;
-    }
-    if (goal.status === "not-started") {
-      goal.progress = 0;
-    }
+    if (goal.status === "completed") goal.progress = 100;
+    if (goal.status === "not-started") goal.progress = 0;
     goal.updatedAt = new Date().toISOString();
     recordGoalHistory(goal);
     render();
@@ -1525,27 +1136,28 @@ function wireEvents() {
 
   document.querySelectorAll("[data-target='allGoalsSection']").forEach((button) => {
     button.addEventListener("click", () => {
+      state.ui.activeView = "goals";
       const range = button.getAttribute("data-range");
       const status = button.getAttribute("data-status");
       state.ui.goalListCollapsed = false;
-      if (range) {
-        elements.goalListRange.value = range;
-      }
+      if (range) elements.goalListRange.value = range;
       elements.goalListStatus.value = status || "all";
       updateCalendarVisibility();
-      render({ keepTimestamp: true, skipSync: true });
+      render({ keepTimestamp: true, skipSave: true });
       document.getElementById("allGoalsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
   elements.reportRange.addEventListener("change", () => {
+    state.ui.activeView = "report";
     state.ui.reportRange = elements.reportRange.value;
     state.ui.reportPeriod = "";
-    render({ keepTimestamp: true, skipSync: true });
+    render({ keepTimestamp: true, skipSave: true });
   });
 
   elements.reportPeriod.addEventListener("change", () => {
+    state.ui.activeView = "report";
     state.ui.reportPeriod = elements.reportPeriod.value;
-    render({ keepTimestamp: true, skipSync: true });
+    render({ keepTimestamp: true, skipSave: true });
   });
 }

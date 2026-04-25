@@ -1,13 +1,11 @@
-const CACHE_NAME = "goal-planner-v2";
+const CACHE_NAME = "goal-planner-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=2026-04-25-1",
-  "./rebuilt-dashboard.js?v=2026-04-25-1",
-  "./supabase-config.js?v=2026-04-25-1",
+  "./styles.css?v=2026-04-25-2",
+  "./rebuilt-dashboard.js?v=2026-04-25-3",
   "./manifest.webmanifest",
-  "./assets/icon.svg",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  "./assets/icon.svg"
 ];
 
 self.addEventListener("install", (event) => {

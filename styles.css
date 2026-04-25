@@ -25,6 +25,7 @@ body {
   min-height: 100vh;
   font-family: "Space Grotesk", sans-serif;
   color: var(--text);
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top, rgba(255, 159, 67, 0.18), transparent 24%),
     radial-gradient(circle at right top, rgba(104, 197, 255, 0.24), transparent 32%),
@@ -42,6 +43,49 @@ select {
   width: min(1100px, calc(100% - 28px));
   margin: 0 auto;
   padding: 28px 0 40px;
+}
+
+.view-nav {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 10px;
+  border: 1px solid rgba(10, 34, 74, 0.12);
+  border-radius: 20px;
+  background: rgba(244, 247, 255, 0.76);
+  backdrop-filter: blur(12px);
+}
+
+.view-tab {
+  border: 0;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: rgba(10, 34, 74, 0.08);
+  color: #12386f;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.view-tab:hover,
+.view-tab:focus-visible {
+  background: rgba(255, 159, 67, 0.22);
+  color: #0a224a;
+  transform: translateY(-1px);
+}
+
+.view-tab.is-active {
+  background: linear-gradient(135deg, #ffb25a, #ff8826);
+  color: #0a224a;
+  box-shadow: 0 10px 20px rgba(255, 159, 67, 0.24);
+}
+
+[data-view-panel][hidden] {
+  display: none !important;
 }
 
 .hero,
@@ -229,20 +273,16 @@ label,
   align-items: center;
 }
 
-.access-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.access-panel,
-.access-form {
-  min-height: 100%;
+.access-panel {
   padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+}
+
+.access-panel--simple {
+  display: grid;
+  gap: 8px;
 }
 
 .access-kicker {
@@ -259,8 +299,7 @@ label,
 }
 
 .access-text,
-.access-hint,
-.inline-message {
+.access-hint {
   color: var(--muted);
 }
 
@@ -271,26 +310,6 @@ label,
 .access-hint {
   margin: 14px 0 0;
   font-size: 0.94rem;
-}
-
-.inline-message {
-  margin: 14px 0 0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.inline-message[data-tone="success"] {
-  color: #dbfff0;
-  border-color: rgba(86, 214, 162, 0.34);
-  background: rgba(86, 214, 162, 0.14);
-}
-
-.inline-message[data-tone="error"] {
-  color: #ffe3e3;
-  border-color: rgba(255, 125, 125, 0.34);
-  background: rgba(255, 125, 125, 0.12);
 }
 
 .mode-badge {
@@ -305,19 +324,9 @@ label,
   font-size: 0.88rem;
 }
 
-.mode-badge--cloud {
-  border-color: rgba(86, 214, 162, 0.32);
-  background: rgba(86, 214, 162, 0.14);
-}
-
 .mode-badge--local {
   border-color: rgba(255, 204, 102, 0.28);
   background: rgba(255, 204, 102, 0.12);
-}
-
-.mode-badge--offline {
-  border-color: rgba(255, 125, 125, 0.28);
-  background: rgba(255, 125, 125, 0.12);
 }
 
 .goal-form,
@@ -918,6 +927,17 @@ select:focus {
   gap: 10px;
 }
 
+.subgoal-list,
+.goal-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.goal-table-head,
+.goal-table {
+  min-width: 860px;
+}
+
 .subgoal-card,
 .subgoal-row {
   padding: 14px 16px;
@@ -1087,13 +1107,25 @@ select:focus {
 
 @media (max-width: 620px) {
   .app-shell {
-    width: min(100% - 18px, 100%);
+    width: min(100% - 14px, 100%);
     padding-top: 18px;
+  }
+
+  .view-nav {
+    top: 8px;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 8px;
+  }
+
+  .view-tab {
+    padding: 11px 8px;
+    font-size: 0.88rem;
   }
 
   .hero,
   .card {
-    padding: 18px;
+    padding: 16px;
   }
 
   .hero,
@@ -1102,7 +1134,6 @@ select:focus {
   .daily-status-wrap,
   .two-up,
   .three-up,
-  .access-grid,
   .summary-report-grid,
   .stats-grid {
     display: grid;
@@ -1123,5 +1154,10 @@ select:focus {
   .subgoal-table-head,
   .subgoal-table-row {
     grid-template-columns: 1fr;
+  }
+
+  .goal-table-head,
+  .goal-table {
+    min-width: 0;
   }
 }
