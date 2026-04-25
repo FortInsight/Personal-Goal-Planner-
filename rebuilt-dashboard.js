@@ -8,8 +8,6 @@ const elements = {
   profileForm: $("profileForm"),
   profileName: $("profileName"),
   todayLabel: $("todayLabel"),
-  installButton: $("installButton"),
-  installMessage: $("installMessage"),
   goalForm: $("goalForm"),
   goalPicker: $("goalPicker"),
   goalTitle: $("goalTitle"),
@@ -32,7 +30,6 @@ const elements = {
   selectedSubGoalList: $("selectedSubGoalList"),
   totalGoals: $("totalGoals"),
   todayGoals: $("todayGoals"),
-  upcomingGoals: $("upcomingGoals"),
   todayCompletedGoals: $("todayCompletedGoals"),
   todayInProgressGoals: $("todayInProgressGoals"),
   dueNotCompletedGoals: $("dueNotCompletedGoals"),
@@ -83,7 +80,6 @@ function getFreshState() {
 }
 
 const state = loadState();
-let deferredInstallPrompt = null;
 
 initialize();
 
@@ -132,7 +128,7 @@ function normalizeState(value) {
   if (!next.goals.some((goal) => goal.id === next.ui.selectedGoalId)) {
     next.ui.selectedGoalId = "";
   }
-  if (!["home", "planner", "goals", "report"].includes(next.ui.activeView)) {
+  if (!["home", "goals", "report"].includes(next.ui.activeView)) {
     next.ui.activeView = "home";
   }
 
@@ -155,28 +151,6 @@ function registerPwa() {
         console.error("Service worker registration failed.", error);
       });
     });
-  }
-
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-    renderInstallState();
-  });
-
-  window.addEventListener("appinstalled", () => {
-    deferredInstallPrompt = null;
-    renderInstallState();
-  });
-
-  renderInstallState();
-}
-
-function renderInstallState() {
-  elements.installButton.hidden = !deferredInstallPrompt;
-  if (elements.installMessage) {
-    elements.installMessage.textContent = deferredInstallPrompt
-      ? "Tap Install app to save this planner to your phone home screen."
-      : "Use your browser menu to install or add this planner to your home screen.";
   }
 }
 
@@ -671,14 +645,6 @@ function renderStats() {
   const today = getToday();
   const allGoals = state.goals;
   const todayGoals = allGoals.filter((goal) => goalOccursWithin(goal, today, today));
-  const upcomingGoals = allGoals.filter((goal) => {
-    for (let offset = 1; offset <= 30; offset += 1) {
-      if (goalOccursWithin(goal, addDays(today, offset), addDays(today, offset))) {
-        return true;
-      }
-    }
-    return false;
-  });
   const dueNotCompleted = allGoals.filter((goal) => {
     const dueDate = dateFromIso(goal.dueDate);
     return dueDate && !isAfterDay(dueDate, today) && goal.status !== "completed";
@@ -686,7 +652,6 @@ function renderStats() {
 
   elements.totalGoals.textContent = String(allGoals.length);
   elements.todayGoals.textContent = String(todayGoals.length);
-  elements.upcomingGoals.textContent = String(upcomingGoals.length);
   elements.todayCompletedGoals.textContent = String(todayGoals.filter((goal) => goal.status === "completed").length);
   elements.todayInProgressGoals.textContent = String(todayGoals.filter((goal) => goal.status === "in-progress").length);
   elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
@@ -957,14 +922,6 @@ function updateCalendarVisibility() {
 }
 
 function wireEvents() {
-  elements.installButton.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    renderInstallState();
-  });
-
   elements.profileForm.addEventListener("input", () => {
     state.profile = {
       profileName: elements.profileName.value.trim(),

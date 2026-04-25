@@ -50,7 +50,7 @@ select {
   top: 10px;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 22px;
   padding: 10px;
@@ -244,16 +244,18 @@ label,
 }
 
 .form-card,
+.all-goals-card,
+.report-card,
 .stats-card,
-.report-card {
-  grid-column: span 6;
+.all-goals-card,
+.today-card {
+  grid-column: span 12;
 }
 
-.access-card,
-.today-card,
-.all-goals-card,
-.report-card {
-  grid-column: span 12;
+.form-card,
+.stats-card {
+  width: 100%;
+  justify-self: stretch;
 }
 
 .section-heading {
