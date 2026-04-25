@@ -1,0 +1,1308 @@
+const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v1";
+
+const $ = (id) => document.getElementById(id);
+
+const elements = {
+  profileForm: $("profileForm"),
+  profileName: $("profileName"),
+  dailyReward: $("dailyReward"),
+  weeklyReward: $("weeklyReward"),
+  monthlyReward: $("monthlyReward"),
+  yearlyReward: $("yearlyReward"),
+  rewardBannerDaily: $("rewardBannerDaily"),
+  rewardBannerDailyTitle: $("rewardBannerDailyTitle"),
+  rewardBannerDailyText: $("rewardBannerDailyText"),
+  rewardBannerWeekly: $("rewardBannerWeekly"),
+  rewardBannerWeeklyTitle: $("rewardBannerWeeklyTitle"),
+  rewardBannerWeeklyText: $("rewardBannerWeeklyText"),
+  rewardBannerMonthly: $("rewardBannerMonthly"),
+  rewardBannerMonthlyTitle: $("rewardBannerMonthlyTitle"),
+  rewardBannerMonthlyText: $("rewardBannerMonthlyText"),
+  rewardBannerYearly: $("rewardBannerYearly"),
+  rewardBannerYearlyTitle: $("rewardBannerYearlyTitle"),
+  rewardBannerYearlyText: $("rewardBannerYearlyText"),
+  todayLabel: $("todayLabel"),
+  goalForm: $("goalForm"),
+  goalPicker: $("goalPicker"),
+  goalTitle: $("goalTitle"),
+  goalDate: $("goalDate"),
+  goalTime: $("goalTime"),
+  goalNotes: $("goalNotes"),
+  goalReward: $("goalReward"),
+  goalRepeat: $("goalRepeat"),
+  customRepeatWrap: $("customRepeatWrap"),
+  goalRepeatInterval: $("goalRepeatInterval"),
+  goalRepeatUnit: $("goalRepeatUnit"),
+  goalSubmitButton: $("goalSubmitButton"),
+  updateGoalForm: $("updateGoalForm"),
+  updateGoalStatus: $("updateGoalStatus"),
+  updateGoalProgress: $("updateGoalProgress"),
+  updateGoalSubmitButton: $("updateGoalSubmitButton"),
+  subGoalSection: $("subGoalSection"),
+  subGoalForm: $("subGoalForm"),
+  subGoalTitle: $("subGoalTitle"),
+  subGoalDate: $("subGoalDate"),
+  selectedSubGoalList: $("selectedSubGoalList"),
+  totalGoals: $("totalGoals"),
+  todayGoals: $("todayGoals"),
+  upcomingGoals: $("upcomingGoals"),
+  todayCompletedGoals: $("todayCompletedGoals"),
+  todayInProgressGoals: $("todayInProgressGoals"),
+  dueNotCompletedGoals: $("dueNotCompletedGoals"),
+  dailyProgressValue: $("dailyProgressValue"),
+  dailyProgressFill: $("dailyProgressFill"),
+  weeklyProgressValue: $("weeklyProgressValue"),
+  weeklyProgressFill: $("weeklyProgressFill"),
+  yearlyProgressValue: $("yearlyProgressValue"),
+  yearlyProgressFill: $("yearlyProgressFill"),
+  goalListRange: $("goalListRange"),
+  goalListCalendarWrap: $("goalListCalendarWrap"),
+  goalListCalendarDate: $("goalListCalendarDate"),
+  goalListStatus: $("goalListStatus"),
+  toggleGoalTableButton: $("toggleGoalTableButton"),
+  goalTableWrap: $("goalTableWrap"),
+  goalList: $("goalList"),
+  resetButton: $("resetButton"),
+  reportRange: $("reportRange"),
+  reportPeriod: $("reportPeriod"),
+  dailyStatusCaption: $("dailyStatusCaption"),
+  dailyDonut: $("dailyDonut"),
+  dailyDonutValue: $("dailyDonutValue"),
+  dailyStatusLegend: $("dailyStatusLegend"),
+  chartCaption: $("chartCaption"),
+  trendChart: $("trendChart"),
+  goalPerformanceCaption: $("goalPerformanceCaption"),
+  goalPerformanceGoal: $("goalPerformanceGoal"),
+  goalPerformanceList: $("goalPerformanceList"),
+  summaryReportCaption: $("summaryReportCaption"),
+  summaryCompleted: $("summaryCompleted"),
+  summaryCompletedText: $("summaryCompletedText"),
+  summaryOutstanding: $("summaryOutstanding"),
+  summaryOutstandingText: $("summaryOutstandingText"),
+  summaryProgress: $("summaryProgress"),
+  summaryNarrative: $("summaryNarrative"),
+};
+
+const defaultProfile = {
+  profileName: "",
+  dailyReward: "",
+  weeklyReward: "",
+  monthlyReward: "",
+  yearlyReward: "",
+};
+
+const state = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return {
+        profile: { ...defaultProfile },
+        goals: [],
+        ui: {
+          selectedGoalId: "",
+          goalListCollapsed: false,
+          reportRange: "day",
+          reportPeriod: "",
+          goalPerformanceGoalId: "",
+        },
+      };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      profile: { ...defaultProfile, ...(parsed.profile || {}) },
+      goals: Array.isArray(parsed.goals) ? parsed.goals.map(normalizeGoal) : [],
+      ui: {
+        selectedGoalId: parsed.ui?.selectedGoalId || "",
+        goalListCollapsed: Boolean(parsed.ui?.goalListCollapsed),
+        reportRange: parsed.ui?.reportRange || "day",
+        reportPeriod: parsed.ui?.reportPeriod || "",
+        goalPerformanceGoalId: parsed.ui?.goalPerformanceGoalId || "",
+      },
+    };
+  } catch {
+    return {
+      profile: { ...defaultProfile },
+      goals: [],
+      ui: {
+        selectedGoalId: "",
+        goalListCollapsed: false,
+        reportRange: "day",
+        reportPeriod: "",
+        goalPerformanceGoalId: "",
+      },
+    };
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function normalizeGoal(goal) {
+  return {
+    id: goal.id || makeId(),
+    title: goal.title || "",
+    dueDate: goal.dueDate || "",
+    time: goal.time || "",
+    notes: goal.notes || "",
+    reward: goal.reward || "",
+    status: normalizeStatus(goal.status),
+    progress: clampNumber(goal.progress, 0, 100, 0),
+    repeat: goal.repeat || "none",
+    repeatInterval: clampNumber(goal.repeatInterval, 1, 999, 1),
+    repeatUnit: goal.repeatUnit || "day",
+    createdAt: goal.createdAt || new Date().toISOString(),
+    updatedAt: goal.updatedAt || new Date().toISOString(),
+    history: normalizeHistory(goal),
+    subGoals: Array.isArray(goal.subGoals)
+      ? goal.subGoals.map((subGoal) => ({
+          id: subGoal.id || makeId(),
+          title: subGoal.title || "",
+          dueDate: subGoal.dueDate || "",
+          status: normalizeStatus(subGoal.status),
+          createdAt: subGoal.createdAt || new Date().toISOString(),
+        }))
+      : [],
+  };
+}
+
+function normalizeHistory(goal) {
+  if (Array.isArray(goal.history) && goal.history.length) {
+    return goal.history
+      .map((entry) => ({
+        date: entry.date || goal.updatedAt || goal.createdAt || new Date().toISOString(),
+        status: normalizeStatus(entry.status),
+        progress: clampNumber(entry.progress, 0, 100, 0),
+      }))
+      .sort((left, right) => new Date(left.date) - new Date(right.date));
+  }
+
+  return [
+    {
+      date: goal.updatedAt || goal.createdAt || new Date().toISOString(),
+      status: normalizeStatus(goal.status),
+      progress: clampNumber(goal.progress, 0, 100, 0),
+    },
+  ];
+}
+
+function normalizeStatus(status) {
+  return ["not-started", "in-progress", "completed"].includes(status)
+    ? status
+    : "not-started";
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function makeId() {
+  return `goal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getToday() {
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function dateFromIso(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function toIsoDate(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return new Date(next.getFullYear(), next.getMonth(), next.getDate());
+}
+
+function addMonths(date, amount) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + amount);
+  return new Date(next.getFullYear(), next.getMonth(), next.getDate());
+}
+
+function addYears(date, amount) {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + amount);
+  return new Date(next.getFullYear(), next.getMonth(), next.getDate());
+}
+
+function startOfWeek(date) {
+  const day = date.getDay();
+  return addDays(date, -day);
+}
+
+function endOfWeek(date) {
+  return addDays(startOfWeek(date), 6);
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function startOfYear(date) {
+  return new Date(date.getFullYear(), 0, 1);
+}
+
+function endOfYear(date) {
+  return new Date(date.getFullYear(), 11, 31);
+}
+
+function sameDay(left, right) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function isBeforeDay(left, right) {
+  return left.getTime() < right.getTime();
+}
+
+function isAfterDay(left, right) {
+  return left.getTime() > right.getTime();
+}
+
+function dayDiff(start, end) {
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+function monthDiff(start, end) {
+  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+}
+
+function yearDiff(start, end) {
+  return end.getFullYear() - start.getFullYear();
+}
+
+function isGoalScheduledOn(goal, date) {
+  if (!goal.dueDate) return false;
+  const baseDate = dateFromIso(goal.dueDate);
+  if (!baseDate || isBeforeDay(date, baseDate)) return false;
+  if (goal.repeat === "none") return sameDay(baseDate, date);
+  if (goal.repeat === "daily") return true;
+  if (goal.repeat === "weekly") return dayDiff(baseDate, date) % 7 === 0;
+  if (goal.repeat === "monthly") {
+    return date.getDate() === baseDate.getDate() && monthDiff(baseDate, date) >= 0;
+  }
+  if (goal.repeat === "yearly") {
+    return (
+      date.getDate() === baseDate.getDate() &&
+      date.getMonth() === baseDate.getMonth() &&
+      yearDiff(baseDate, date) >= 0
+    );
+  }
+  if (goal.repeat === "custom") {
+    const every = Math.max(1, goal.repeatInterval || 1);
+    if (goal.repeatUnit === "day") {
+      return dayDiff(baseDate, date) % every === 0;
+    }
+    if (goal.repeatUnit === "week") {
+      return dayDiff(baseDate, date) % (every * 7) === 0;
+    }
+    if (goal.repeatUnit === "month") {
+      return date.getDate() === baseDate.getDate() && monthDiff(baseDate, date) % every === 0;
+    }
+    if (goal.repeatUnit === "year") {
+      return (
+        date.getDate() === baseDate.getDate() &&
+        date.getMonth() === baseDate.getMonth() &&
+        yearDiff(baseDate, date) % every === 0
+      );
+    }
+  }
+  return false;
+}
+
+function getFilterRange() {
+  const today = getToday();
+  const selectedCalendarDate = dateFromIso(elements.goalListCalendarDate.value) || today;
+  const range = elements.goalListRange.value;
+  if (range === "today") {
+    return { start: today, end: today, label: "Today" };
+  }
+  if (range === "tomorrow") {
+    const tomorrow = addDays(today, 1);
+    return { start: tomorrow, end: tomorrow, label: "Tomorrow" };
+  }
+  if (range === "week") {
+    return { start: startOfWeek(today), end: endOfWeek(today), label: "This week" };
+  }
+  if (range === "month") {
+    return { start: startOfMonth(today), end: endOfMonth(today), label: "This month" };
+  }
+  if (range === "year") {
+    return { start: startOfYear(today), end: endOfYear(today), label: "This year" };
+  }
+  if (range === "calendar") {
+    return { start: selectedCalendarDate, end: selectedCalendarDate, label: "Selected date" };
+  }
+  return { start: null, end: null, label: "All goals" };
+}
+
+function goalOccursWithin(goal, start, end) {
+  if (!start || !end) return true;
+  if (!goal.dueDate) {
+    return sameDay(getToday(), start) && sameDay(start, end) && goal.status !== "completed";
+  }
+  for (let cursor = new Date(start); !isAfterDay(cursor, end); cursor = addDays(cursor, 1)) {
+    if (isGoalScheduledOn(goal, cursor)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function firstOccurrenceWithin(goal, start, end) {
+  if (!start || !end) {
+    return goal.dueDate ? dateFromIso(goal.dueDate) : null;
+  }
+  if (!goal.dueDate) {
+    return sameDay(getToday(), start) && goal.status !== "completed" ? start : null;
+  }
+  for (let cursor = new Date(start); !isAfterDay(cursor, end); cursor = addDays(cursor, 1)) {
+    if (isGoalScheduledOn(goal, cursor)) {
+      return cursor;
+    }
+  }
+  return null;
+}
+
+function getSuccess(goal) {
+  if (goal.subGoals.length) {
+    const completed = goal.subGoals.filter((item) => item.status === "completed").length;
+    return {
+      pct: Math.round((completed / goal.subGoals.length) * 100),
+      text: `${Math.round((completed / goal.subGoals.length) * 100)}% (${completed}/${goal.subGoals.length})`,
+    };
+  }
+  return {
+    pct: clampNumber(goal.progress, 0, 100, 0),
+    text: `${clampNumber(goal.progress, 0, 100, 0)}%`,
+  };
+}
+
+function recordGoalHistory(goal) {
+  if (!goal) return;
+  if (!Array.isArray(goal.history)) goal.history = [];
+  goal.history.push({
+    date: new Date().toISOString(),
+    status: normalizeStatus(goal.status),
+    progress: clampNumber(goal.progress, 0, 100, 0),
+  });
+  goal.history = goal.history
+    .sort((left, right) => new Date(left.date) - new Date(right.date))
+    .slice(-120);
+}
+
+function getRepeatLabel(goal) {
+  if (goal.repeat === "none") return "One time";
+  if (goal.repeat === "daily") return "Repeats daily";
+  if (goal.repeat === "weekly") return "Repeats weekly";
+  if (goal.repeat === "monthly") return "Repeats monthly";
+  if (goal.repeat === "yearly") return "Repeats yearly";
+  if (goal.repeat === "custom") {
+    const unitMap = {
+      day: "days",
+      week: "weeks",
+      month: "months",
+      year: "years",
+    };
+    return `Repeats every ${goal.repeatInterval} ${unitMap[goal.repeatUnit] || "days"}`;
+  }
+  return "One time";
+}
+
+function formatDate(value) {
+  const date = value instanceof Date ? value : dateFromIso(value);
+  if (!date) return "No due date";
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatLongDate(date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  const [hours, minutes] = value.split(":").map(Number);
+  const sample = new Date();
+  sample.setHours(hours || 0, minutes || 0, 0, 0);
+  return new Intl.DateTimeFormat("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(sample);
+}
+
+function getFilteredGoals() {
+  const { start, end } = getFilterRange();
+  const statusFilter = elements.goalListStatus.value;
+  return [...state.goals]
+    .sort(sortGoals)
+    .filter((goal) => goalOccursWithin(goal, start, end))
+    .filter((goal) => matchesStatusFilter(goal, statusFilter));
+}
+
+function matchesStatusFilter(goal, filter) {
+  if (filter === "all") return true;
+  if (filter === "due-not-completed") {
+    const today = getToday();
+    const dueDate = dateFromIso(goal.dueDate);
+    return Boolean(dueDate && !isAfterDay(dueDate, today) && goal.status !== "completed");
+  }
+  return goal.status === filter;
+}
+
+function sortGoals(left, right) {
+  const leftDate = dateFromIso(left.dueDate);
+  const rightDate = dateFromIso(right.dueDate);
+  if (leftDate && rightDate && leftDate.getTime() !== rightDate.getTime()) {
+    return leftDate - rightDate;
+  }
+  if (leftDate && !rightDate) return -1;
+  if (!leftDate && rightDate) return 1;
+  return left.title.localeCompare(right.title);
+}
+
+function selectedGoal() {
+  return state.goals.find((goal) => goal.id === state.ui.selectedGoalId) || null;
+}
+
+function updateCustomRepeatVisibility() {
+  const show = elements.goalRepeat.value === "custom";
+  elements.customRepeatWrap.hidden = !show;
+  if (show) {
+    elements.customRepeatWrap.classList.add("custom-repeat-pop");
+    setTimeout(() => elements.customRepeatWrap.classList.remove("custom-repeat-pop"), 240);
+  }
+}
+
+function renderProfile() {
+  elements.profileName.value = state.profile.profileName || "";
+  elements.dailyReward.value = state.profile.dailyReward || "";
+  elements.weeklyReward.value = state.profile.weeklyReward || "";
+  elements.monthlyReward.value = state.profile.monthlyReward || "";
+  elements.yearlyReward.value = state.profile.yearlyReward || "";
+  elements.todayLabel.textContent = formatLongDate(getToday());
+}
+
+function renderGoalPicker() {
+  const current = state.ui.selectedGoalId;
+  const options = ['<option value="">Create a new goal</option>']
+    .concat(
+      [...state.goals].sort(sortGoals).map((goal) => {
+        const due = goal.dueDate ? ` - ${formatDate(goal.dueDate)}` : "";
+        return `<option value="${goal.id}">${escapeHtml(goal.title)}${due}</option>`;
+      }),
+    )
+    .join("");
+  elements.goalPicker.innerHTML = options;
+  elements.goalPicker.value = current;
+
+  const performanceOptions = ['<option value="">All</option>']
+    .concat(
+      [...state.goals].sort(sortGoals).map((goal) => {
+        const due = goal.dueDate ? ` - ${formatDate(goal.dueDate)}` : "";
+        return `<option value="${goal.id}">${escapeHtml(goal.title)}${due}</option>`;
+      }),
+    )
+    .join("");
+  elements.goalPerformanceGoal.innerHTML = performanceOptions;
+  if (!state.goals.some((goal) => goal.id === state.ui.goalPerformanceGoalId)) {
+    state.ui.goalPerformanceGoalId = "";
+  }
+  elements.goalPerformanceGoal.value = state.ui.goalPerformanceGoalId;
+}
+
+function renderSelectedGoal() {
+  const goal = selectedGoal();
+  elements.subGoalSection.hidden = !goal;
+  elements.updateGoalStatus.disabled = !goal;
+  elements.updateGoalProgress.disabled = !goal;
+  elements.updateGoalSubmitButton.disabled = !goal;
+
+  if (!goal) {
+    elements.goalTitle.value = "";
+    elements.goalDate.value = "";
+    elements.goalTime.value = "";
+    elements.goalNotes.value = "";
+    elements.goalReward.value = "";
+    elements.goalRepeat.value = "none";
+    elements.goalRepeatInterval.value = 2;
+    elements.goalRepeatUnit.value = "day";
+    elements.updateGoalStatus.value = "not-started";
+    elements.updateGoalProgress.value = 0;
+    elements.goalSubmitButton.textContent = "Save goal";
+    elements.selectedSubGoalList.innerHTML = "";
+    updateCustomRepeatVisibility();
+    return;
+  }
+
+  elements.goalTitle.value = goal.title;
+  elements.goalDate.value = goal.dueDate;
+  elements.goalTime.value = goal.time || "";
+  elements.goalNotes.value = goal.notes || "";
+  elements.goalReward.value = goal.reward || "";
+  elements.goalRepeat.value = goal.repeat || "none";
+  elements.goalRepeatInterval.value = goal.repeatInterval || 2;
+  elements.goalRepeatUnit.value = goal.repeatUnit || "day";
+  elements.updateGoalStatus.value = goal.status;
+  elements.updateGoalProgress.value = goal.progress;
+  elements.goalSubmitButton.textContent = "Save changes";
+  updateCustomRepeatVisibility();
+  renderSubGoals(goal);
+}
+
+function renderSubGoals(goal) {
+  if (!goal || !goal.subGoals.length) {
+    elements.selectedSubGoalList.innerHTML =
+      '<div class="empty-state">No sub-goals yet. Add one to break this plan into smaller steps.</div>';
+    return;
+  }
+
+  const rows = goal.subGoals
+    .slice()
+    .sort((left, right) => sortGoals(left, right))
+    .map(
+      (subGoal) => `
+        <div class="subgoal-row">
+          <div>${escapeHtml(subGoal.title)}</div>
+          <div>${formatDate(subGoal.dueDate)}</div>
+          <div>${statusLabel(subGoal.status)}</div>
+          <div>
+            <select class="status-select ${statusClass(subGoal.status)}" data-subgoal-id="${subGoal.id}" data-goal-id="${goal.id}">
+              ${statusOptions(subGoal.status)}
+            </select>
+          </div>
+        </div>
+      `,
+    )
+    .join("");
+
+  elements.selectedSubGoalList.innerHTML = `
+    <div class="subgoal-table">
+      <div class="subgoal-table-head">
+        <span>Sub-goal</span>
+        <span>Due date</span>
+        <span>Status</span>
+        <span>Action</span>
+      </div>
+      ${rows}
+    </div>
+  `;
+}
+
+function renderStats() {
+  const today = getToday();
+  const allGoals = state.goals;
+  const todayGoals = allGoals.filter((goal) => goalOccursWithin(goal, today, today));
+  const upcomingGoals = allGoals.filter((goal) => {
+    for (let offset = 1; offset <= 30; offset += 1) {
+      if (goalOccursWithin(goal, addDays(today, offset), addDays(today, offset))) {
+        return true;
+      }
+    }
+    return false;
+  });
+  const dueNotCompleted = allGoals.filter((goal) => {
+    const dueDate = dateFromIso(goal.dueDate);
+    return dueDate && !isAfterDay(dueDate, today) && goal.status !== "completed";
+  });
+
+  elements.totalGoals.textContent = String(allGoals.length);
+  elements.todayGoals.textContent = String(todayGoals.length);
+  elements.upcomingGoals.textContent = String(upcomingGoals.length);
+  elements.todayCompletedGoals.textContent = String(
+    todayGoals.filter((goal) => goal.status === "completed").length,
+  );
+  elements.todayInProgressGoals.textContent = String(
+    todayGoals.filter((goal) => goal.status === "in-progress").length,
+  );
+  elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
+
+  setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, percentFromGoals(todayGoals));
+  setProgressCard(
+    elements.weeklyProgressValue,
+    elements.weeklyProgressFill,
+    percentFromGoals(allGoals.filter((goal) => goalOccursWithin(goal, startOfWeek(today), endOfWeek(today)))),
+  );
+  setProgressCard(
+    elements.yearlyProgressValue,
+    elements.yearlyProgressFill,
+    percentFromGoals(allGoals.filter((goal) => goalOccursWithin(goal, startOfYear(today), endOfYear(today)))),
+  );
+}
+
+function percentFromGoals(goals) {
+  if (!goals.length) return 0;
+  const completed = goals.filter((goal) => goal.status === "completed").length;
+  return Math.round((completed / goals.length) * 100);
+}
+
+function setProgressCard(labelNode, fillNode, percent) {
+  labelNode.textContent = `${percent}%`;
+  fillNode.style.width = `${percent}%`;
+}
+
+function renderRewardBanners() {
+  const today = getToday();
+  renderRewardBanner(
+    elements.rewardBannerDaily,
+    elements.rewardBannerDailyTitle,
+    elements.rewardBannerDailyText,
+    "Daily reward progress",
+    state.profile.dailyReward,
+    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, today, today))),
+    "daily",
+  );
+  renderRewardBanner(
+    elements.rewardBannerWeekly,
+    elements.rewardBannerWeeklyTitle,
+    elements.rewardBannerWeeklyText,
+    "Weekly reward progress",
+    state.profile.weeklyReward,
+    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfWeek(today), endOfWeek(today)))),
+    "weekly",
+  );
+  renderRewardBanner(
+    elements.rewardBannerMonthly,
+    elements.rewardBannerMonthlyTitle,
+    elements.rewardBannerMonthlyText,
+    "Monthly reward progress",
+    state.profile.monthlyReward,
+    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfMonth(today), endOfMonth(today)))),
+    "monthly",
+  );
+  renderRewardBanner(
+    elements.rewardBannerYearly,
+    elements.rewardBannerYearlyTitle,
+    elements.rewardBannerYearlyText,
+    "Yearly reward progress",
+    state.profile.yearlyReward,
+    percentFromGoals(state.goals.filter((goal) => goalOccursWithin(goal, startOfYear(today), endOfYear(today)))),
+    "yearly",
+  );
+}
+
+function renderRewardBanner(node, titleNode, textNode, title, reward, pct, periodLabel) {
+  node.hidden = !reward;
+  node.classList.remove("reward-banner--ready", "reward-banner--success", "reward-banner--pop");
+  if (!reward) return;
+
+  titleNode.textContent = title;
+  if (pct >= 100) {
+    node.classList.add("reward-banner--success", "reward-banner--pop");
+    textNode.textContent = `You earned your ${periodLabel} achieved goal reward: ${reward}.`;
+    return;
+  }
+  node.classList.add("reward-banner--ready");
+  textNode.textContent = `You have ${pct}% progress toward your ${periodLabel} achieved goal reward: ${reward}.`;
+}
+
+function renderGoalList() {
+  const goals = getFilteredGoals();
+  const { start, end, label } = getFilterRange();
+  elements.goalList.innerHTML = goals.length
+    ? goals
+        .map((goal) => {
+          const occurrence = firstOccurrenceWithin(goal, start, end);
+          const success = getSuccess(goal);
+          return `
+            <article class="goal-table-row">
+              <div class="goal-table-cell goal-table-title">${escapeHtml(goal.title)}</div>
+              <div class="goal-table-cell">${occurrence ? formatDate(occurrence) : formatDate(goal.dueDate)}</div>
+              <div class="goal-table-cell"><span class="pill">${statusLabel(goal.status)}</span></div>
+              <div class="goal-table-cell">${goal.progress}%</div>
+              <div class="goal-table-cell">${success.text}</div>
+              <div class="goal-table-cell"><span class="pill repeat-pill">${escapeHtml(getRepeatLabel(goal))}</span></div>
+              <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.notes || "No notes")}</div>
+              <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.reward || "No reward")}</div>
+              <div class="goal-table-cell">
+                <div class="goal-actions">
+                  <select class="status-select ${statusClass(goal.status)}" data-goal-id="${goal.id}">
+                    ${statusOptions(goal.status)}
+                  </select>
+                  <button class="remove-btn" type="button" data-remove-goal="${goal.id}">Remove</button>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<div class="empty-state">No goals found for ${label.toLowerCase()}.</div>`;
+}
+
+function renderReports() {
+  const range = elements.reportRange.value;
+  const periods = buildReportPeriods(range);
+  if (!periods.length) {
+    elements.reportPeriod.innerHTML = '<option value="">No periods</option>';
+    renderEmptyReport();
+    return;
+  }
+
+  const currentValue = state.ui.reportPeriod;
+  if (!periods.some((period) => period.value === currentValue)) {
+    state.ui.reportPeriod = periods[periods.length - 1].value;
+  }
+
+  elements.reportPeriod.innerHTML = periods
+    .map((period) => `<option value="${period.value}">${escapeHtml(period.label)}</option>`)
+    .join("");
+  elements.reportPeriod.value = state.ui.reportPeriod;
+
+  const selected = periods.find((period) => period.value === state.ui.reportPeriod) || periods[periods.length - 1];
+  const goals = state.goals.filter((goal) => goalOccursWithin(goal, selected.start, selected.end));
+  const completed = goals.filter((goal) => goal.status === "completed").length;
+  const inProgress = goals.filter((goal) => goal.status === "in-progress").length;
+  const notStarted = goals.filter((goal) => goal.status === "not-started").length;
+  const total = goals.length;
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+
+  elements.dailyStatusCaption.textContent = selected.label;
+  elements.dailyDonutValue.textContent = total ? `${percent}%` : "0%";
+  elements.dailyDonut.style.background = `conic-gradient(var(--accent) ${percent * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+  elements.dailyStatusLegend.innerHTML = [
+    legendItem("Completed", completed, "#56d6a2"),
+    legendItem("In progress", inProgress, "#ffcc66"),
+    legendItem("Not started", notStarted, "#ff7d7d"),
+  ].join("");
+
+  const trendBars = buildTrendBars(range);
+  elements.chartCaption.textContent =
+    range === "day"
+      ? "Daily view"
+      : range === "week"
+        ? "Weekly view"
+        : range === "month"
+          ? "Monthly view"
+          : "Yearly view";
+  elements.trendChart.innerHTML = trendBars.join("");
+
+  elements.summaryReportCaption.textContent = selected.label;
+  elements.summaryCompleted.textContent = String(completed);
+  elements.summaryOutstanding.textContent = String(total - completed);
+  elements.summaryProgress.textContent = total ? `${percent}%` : "0%";
+  elements.summaryCompletedText.textContent = total
+    ? `${completed} completed out of ${total} goals in this period.`
+    : "No completed goals in this period.";
+  elements.summaryOutstandingText.textContent = total
+    ? `${total - completed} goals still need attention in this period.`
+    : "No outstanding goals in this period.";
+  elements.summaryNarrative.textContent = buildSummaryNarrative(selected.label, total, completed, inProgress, percent);
+  renderGoalPerformancePanel();
+}
+
+function buildReportPeriods(range) {
+  const today = getToday();
+  if (range === "day") {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(today, index - 6);
+      return {
+        value: toIsoDate(date),
+        label: formatLongDate(date),
+        start: date,
+        end: date,
+      };
+    });
+  }
+  if (range === "week") {
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = addDays(startOfWeek(today), (index - 5) * 7);
+      return {
+        value: `${toIsoDate(startOfWeek(date))}-week`,
+        label: `${formatDate(startOfWeek(date))} to ${formatDate(endOfWeek(date))}`,
+        start: startOfWeek(date),
+        end: endOfWeek(date),
+      };
+    });
+  }
+  if (range === "month") {
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = addMonths(startOfMonth(today), index - 5);
+      return {
+        value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+        label: new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric" }).format(date),
+        start: startOfMonth(date),
+        end: endOfMonth(date),
+      };
+    });
+  }
+  return Array.from({ length: 5 }, (_, index) => {
+    const year = today.getFullYear() - 4 + index;
+    const date = new Date(year, 0, 1);
+    return {
+      value: `${year}`,
+      label: `${year}`,
+      start: startOfYear(date),
+      end: endOfYear(date),
+    };
+  });
+}
+
+function buildTrendBars(range) {
+  const periods = buildReportPeriods(range);
+  return periods.map((period) => {
+    const goals = state.goals.filter((goal) => goalOccursWithin(goal, period.start, period.end));
+    const percent = percentFromGoals(goals);
+    const barClass = percent >= 80 ? "good" : percent >= 40 ? "mid" : "low";
+    const shortLabel =
+      range === "day"
+        ? new Intl.DateTimeFormat("en-CA", { weekday: "short" }).format(period.start)
+        : range === "week"
+          ? new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" }).format(period.start)
+        : range === "month"
+          ? new Intl.DateTimeFormat("en-CA", { month: "short" }).format(period.start)
+          : period.label;
+    const topLabel = percent === 100 && goals.length ? "Perfect day" : `${percent}%`;
+    return `
+      <div class="chart-col">
+        <div class="chart-value">${topLabel}</div>
+        <div class="chart-bar-wrap">
+          ${goals.length
+            ? `<div class="chart-bar ${barClass}" style="height:${Math.max(8, percent)}%"></div>`
+            : '<div class="chart-empty">No data</div>'}
+        </div>
+        <div class="chart-name">${escapeHtml(shortLabel)}</div>
+      </div>
+    `;
+  });
+}
+
+function buildSummaryNarrative(label, total, completed, inProgress, percent) {
+  if (!total) {
+    return `No goals are scheduled for ${label.toLowerCase()} yet. Add a goal to start building momentum.`;
+  }
+  if (percent === 100) {
+    return `${label} is a perfect day. You completed all ${total} scheduled goals.`;
+  }
+  return `${label} has ${completed} completed goals, ${inProgress} in progress, and ${total - completed - inProgress} not started, with an overall progress of ${percent}%. Keep going.`;
+}
+
+function renderEmptyReport() {
+  elements.dailyStatusCaption.textContent = "Today";
+  elements.dailyDonutValue.textContent = "0%";
+  elements.dailyDonut.style.background = "conic-gradient(var(--accent) 0deg, rgba(255,255,255,0.1) 0deg)";
+  elements.dailyStatusLegend.innerHTML = [
+    legendItem("Completed", 0, "#56d6a2"),
+    legendItem("In progress", 0, "#ffcc66"),
+    legendItem("Not started", 0, "#ff7d7d"),
+  ].join("");
+  elements.chartCaption.textContent = "Daily view";
+  elements.trendChart.innerHTML = '<div class="empty-state">No data yet.</div>';
+  elements.summaryReportCaption.textContent = "Selected period";
+  elements.summaryCompleted.textContent = "0";
+  elements.summaryOutstanding.textContent = "0";
+  elements.summaryProgress.textContent = "0%";
+  elements.summaryCompletedText.textContent = "No completed goals in this period.";
+  elements.summaryOutstandingText.textContent = "No outstanding goals in this period.";
+  elements.summaryNarrative.textContent =
+    "Choose a period to see your completed work, missed work, and overall progress.";
+  renderGoalPerformancePanel();
+}
+
+function renderGoalPerformancePanel() {
+  const goal = state.goals.find((item) => item.id === state.ui.goalPerformanceGoalId);
+  const range = elements.reportRange.value;
+  const periods = buildGoalPerformancePeriods(range);
+  if (!goal) {
+    elements.goalPerformanceCaption.textContent = `All goals - ${range} view`;
+    elements.goalPerformanceList.innerHTML = periods.map((period) => buildAllGoalsPerformanceRow(period)).join("");
+    return;
+  }
+  const rows = periods.map((period) => buildGoalPerformanceRow(goal, period));
+
+  elements.goalPerformanceCaption.textContent = `${goal.title} · ${range} view`;
+  elements.goalPerformanceList.innerHTML = rows.join("");
+  elements.goalPerformanceCaption.textContent = `${goal.title} - ${range} view`;
+}
+
+function buildGoalPerformancePeriods(range) {
+  const today = getToday();
+  if (range === "day") {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(today, index - 6);
+      return {
+        key: toIsoDate(date),
+        label: formatLongDate(date),
+        start: date,
+        end: date,
+      };
+    });
+  }
+  if (range === "week") {
+    return Array.from({ length: 6 }, (_, index) => {
+      const anchor = addDays(startOfWeek(today), (index - 5) * 7);
+      return {
+        key: `${toIsoDate(anchor)}-week`,
+        label: `${formatDate(startOfWeek(anchor))} to ${formatDate(endOfWeek(anchor))}`,
+        start: startOfWeek(anchor),
+        end: endOfWeek(anchor),
+      };
+    });
+  }
+  if (range === "month") {
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = addMonths(startOfMonth(today), index - 5);
+      return {
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+        label: new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric" }).format(date),
+        start: startOfMonth(date),
+        end: endOfMonth(date),
+      };
+    });
+  }
+  return Array.from({ length: 5 }, (_, index) => {
+    const year = today.getFullYear() - 4 + index;
+    const date = new Date(year, 0, 1);
+    return {
+      key: `${year}`,
+      label: `${year}`,
+      start: startOfYear(date),
+      end: endOfYear(date),
+    };
+  });
+}
+
+function buildGoalPerformanceRow(goal, period) {
+  const snapshot = getGoalSnapshotForPeriod(goal, period.start, period.end);
+  if (!snapshot) {
+    return `
+      <article class="performance-item">
+        <div class="performance-head">
+          <strong class="performance-title">${escapeHtml(period.label)}</strong>
+          <span class="performance-meta">No update</span>
+        </div>
+        <div class="performance-bar">
+          <div class="performance-fill" style="width:0%"></div>
+        </div>
+        <div class="performance-meta">No status update saved for this period.</div>
+      </article>
+    `;
+  }
+
+  const percent = snapshot.status === "completed" ? 100 : clampNumber(snapshot.progress, 0, 100, 0);
+  return `
+    <article class="performance-item">
+      <div class="performance-head">
+        <strong class="performance-title">${escapeHtml(period.label)}</strong>
+        <span class="performance-meta">${statusLabel(snapshot.status)} · ${percent}%</span>
+      </div>
+      <div class="performance-bar">
+        <div class="performance-fill" style="width:${percent}%"></div>
+      </div>
+      <div class="performance-meta">Last update ${formatDate(new Date(snapshot.date))}</div>
+    </article>
+  `;
+}
+
+function buildAllGoalsPerformanceRow(period) {
+  const goals = state.goals.filter((goal) => goalOccursWithin(goal, period.start, period.end));
+  const total = goals.length;
+  const completed = goals.filter((goal) => goal.status === "completed").length;
+  const inProgress = goals.filter((goal) => goal.status === "in-progress").length;
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+
+  return `
+    <article class="performance-item">
+      <div class="performance-head">
+        <strong class="performance-title">${escapeHtml(period.label)}</strong>
+        <span class="performance-meta">${completed}/${total} completed - ${percent}%</span>
+      </div>
+      <div class="performance-bar">
+        <div class="performance-fill" style="width:${percent}%"></div>
+      </div>
+      <div class="performance-meta">${inProgress} in progress, ${Math.max(total - completed - inProgress, 0)} not started.</div>
+    </article>
+  `;
+}
+
+function getGoalSnapshotForPeriod(goal, start, end) {
+  if (!Array.isArray(goal.history) || !goal.history.length) return null;
+  const entries = goal.history
+    .filter((entry) => {
+      const date = new Date(entry.date);
+      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return !isBeforeDay(normalized, start) && !isAfterDay(normalized, end);
+    })
+    .sort((left, right) => new Date(left.date) - new Date(right.date));
+  return entries[entries.length - 1] || null;
+}
+
+function legendItem(label, value, color) {
+  return `
+    <div class="legend-item">
+      <span class="legend-label"><span class="legend-dot" style="background:${color}"></span>${escapeHtml(label)}</span>
+      <span class="legend-value">${value}</span>
+    </div>
+  `;
+}
+
+function statusClass(status) {
+  return `status-select--${status}`;
+}
+
+function statusLabel(status) {
+  if (status === "completed") return "Completed";
+  if (status === "in-progress") return "In progress";
+  return "Not started";
+}
+
+function statusOptions(selected) {
+  return [
+    { value: "not-started", label: "Not started" },
+    { value: "in-progress", label: "In progress" },
+    { value: "completed", label: "Completed" },
+  ]
+    .map(
+      (item) =>
+        `<option value="${item.value}"${item.value === selected ? " selected" : ""}>${item.label}</option>`,
+    )
+    .join("");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function render() {
+  renderProfile();
+  renderGoalPicker();
+  renderSelectedGoal();
+  renderStats();
+  renderRewardBanners();
+  renderGoalList();
+  renderReports();
+  updateTableVisibility();
+  updateCalendarVisibility();
+  saveState();
+}
+
+function updateTableVisibility() {
+  elements.goalTableWrap.hidden = state.ui.goalListCollapsed;
+  elements.toggleGoalTableButton.textContent = state.ui.goalListCollapsed ? "Expand list" : "Collapse list";
+  elements.toggleGoalTableButton.setAttribute("aria-expanded", String(!state.ui.goalListCollapsed));
+}
+
+function updateCalendarVisibility() {
+  elements.goalListCalendarWrap.hidden = elements.goalListRange.value !== "calendar";
+}
+
+function wireEvents() {
+  elements.profileForm.addEventListener("input", () => {
+    state.profile = {
+      profileName: elements.profileName.value,
+      dailyReward: elements.dailyReward.value,
+      weeklyReward: elements.weeklyReward.value,
+      monthlyReward: elements.monthlyReward.value,
+      yearlyReward: elements.yearlyReward.value,
+    };
+    render();
+  });
+
+  elements.goalPicker.addEventListener("change", () => {
+    state.ui.selectedGoalId = elements.goalPicker.value;
+    render();
+  });
+
+  elements.goalRepeat.addEventListener("change", updateCustomRepeatVisibility);
+
+  elements.goalForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const goal = selectedGoal();
+    const payload = {
+      title: elements.goalTitle.value.trim(),
+      dueDate: elements.goalDate.value,
+      time: elements.goalTime.value,
+      notes: elements.goalNotes.value.trim(),
+      reward: elements.goalReward.value.trim(),
+      repeat: elements.goalRepeat.value,
+      repeatInterval: clampNumber(elements.goalRepeatInterval.value, 1, 999, 1),
+      repeatUnit: elements.goalRepeatUnit.value,
+    };
+
+    if (!payload.title) return;
+
+    if (goal) {
+      Object.assign(goal, payload, { updatedAt: new Date().toISOString() });
+    } else {
+      const createdGoal = normalizeGoal({
+        ...payload,
+        status: "not-started",
+        progress: 0,
+      });
+      state.goals.push(createdGoal);
+    }
+
+    state.ui.selectedGoalId = "";
+    if (!state.ui.goalPerformanceGoalId && state.goals.length) {
+      state.ui.goalPerformanceGoalId = state.goals[state.goals.length - 1].id;
+    }
+    elements.goalListRange.value = "all";
+    elements.goalListStatus.value = "all";
+    render();
+  });
+
+  elements.updateGoalForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const goal = selectedGoal();
+    if (!goal) return;
+    goal.status = elements.updateGoalStatus.value;
+    goal.progress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
+    if (goal.status === "completed") goal.progress = 100;
+    goal.updatedAt = new Date().toISOString();
+    recordGoalHistory(goal);
+    render();
+  });
+
+  elements.subGoalForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const goal = selectedGoal();
+    if (!goal) return;
+    goal.subGoals.push({
+      id: makeId(),
+      title: elements.subGoalTitle.value.trim(),
+      dueDate: elements.subGoalDate.value,
+      status: "not-started",
+      createdAt: new Date().toISOString(),
+    });
+    elements.subGoalTitle.value = "";
+    elements.subGoalDate.value = "";
+    render();
+  });
+
+  elements.goalListRange.addEventListener("change", () => {
+    updateCalendarVisibility();
+    renderGoalList();
+  });
+
+  elements.goalListCalendarDate.addEventListener("change", renderGoalList);
+  elements.goalListStatus.addEventListener("change", renderGoalList);
+
+  elements.toggleGoalTableButton.addEventListener("click", () => {
+    state.ui.goalListCollapsed = !state.ui.goalListCollapsed;
+    render();
+  });
+
+  elements.resetButton.addEventListener("click", () => {
+    if (!confirm("Reset all goals? This will clear the rebuilt dashboard only.")) return;
+    state.goals = [];
+    state.ui.selectedGoalId = "";
+    render();
+  });
+
+  elements.goalList.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement)) return;
+
+    const goalId = target.dataset.goalId;
+    const subGoalId = target.dataset.subgoalId;
+
+    if (goalId && subGoalId) {
+      const goal = state.goals.find((item) => item.id === goalId);
+      const subGoal = goal?.subGoals.find((item) => item.id === subGoalId);
+      if (!subGoal) return;
+      subGoal.status = normalizeStatus(target.value);
+      recordGoalHistory(goal);
+      render();
+      return;
+    }
+
+    if (goalId) {
+      const goal = state.goals.find((item) => item.id === goalId);
+      if (!goal) return;
+      goal.status = normalizeStatus(target.value);
+      if (goal.status === "completed") {
+        goal.progress = 100;
+      }
+      recordGoalHistory(goal);
+      render();
+    }
+  });
+
+  elements.goalList.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (target.dataset.removeGoal) {
+      state.goals = state.goals.filter((goal) => goal.id !== target.dataset.removeGoal);
+      if (state.ui.selectedGoalId === target.dataset.removeGoal) {
+        state.ui.selectedGoalId = "";
+      }
+      render();
+    }
+  });
+
+  document.querySelectorAll("[data-target='allGoalsSection']").forEach((button) => {
+    button.addEventListener("click", () => {
+      const range = button.getAttribute("data-range");
+      const status = button.getAttribute("data-status");
+      state.ui.goalListCollapsed = false;
+      if (range) elements.goalListRange.value = range;
+      if (status) {
+        elements.goalListStatus.value = status;
+      } else {
+        elements.goalListStatus.value = "all";
+      }
+      updateCalendarVisibility();
+      render();
+    });
+  });
+
+  elements.reportRange.addEventListener("change", () => {
+    state.ui.reportRange = elements.reportRange.value;
+    state.ui.reportPeriod = "";
+    render();
+  });
+
+  elements.reportPeriod.addEventListener("change", () => {
+    state.ui.reportPeriod = elements.reportPeriod.value;
+    renderReports();
+    saveState();
+  });
+
+  elements.goalPerformanceGoal.addEventListener("change", () => {
+    state.ui.goalPerformanceGoalId = elements.goalPerformanceGoal.value;
+    render();
+    saveState();
+  });
+}
+
+wireEvents();
+elements.reportRange.value = state.ui.reportRange || "day";
+elements.goalListCalendarDate.value = toIsoDate(getToday());
+updateCustomRepeatVisibility();
+render();

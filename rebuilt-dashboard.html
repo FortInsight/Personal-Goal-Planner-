@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Daily Goals Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=2026-04-22-1">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Personal goal planner</p>
+        <h1>Plan goals, track today, and stay ahead.</h1>
+        <p class="hero-text">
+          Add as many goals as you want, set due dates, and let the dashboard show what is due today, completed, or still ahead.
+        </p>
+        <form id="profileForm" class="profile-form">
+          <div class="two-up">
+            <label>
+              Your name
+              <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
+            </label>
+            <label>
+              Daily reward
+              <input id="dailyReward" name="dailyReward" type="text" placeholder="Example: Watch a movie">
+            </label>
+          </div>
+          <div class="three-up reward-input-grid">
+            <label>
+              Weekly reward
+              <input id="weeklyReward" name="weeklyReward" type="text" placeholder="Example: Dinner out">
+            </label>
+            <label>
+              Monthly reward
+              <input id="monthlyReward" name="monthlyReward" type="text" placeholder="Example: Spa day">
+            </label>
+            <label>
+              Yearly reward
+              <input id="yearlyReward" name="yearlyReward" type="text" placeholder="Example: Vacation">
+            </label>
+          </div>
+        </form>
+        <div class="reward-banner-grid">
+          <div id="rewardBannerDaily" class="reward-banner">
+            <strong id="rewardBannerDailyTitle">Daily reward progress</strong>
+            <p id="rewardBannerDailyText">Set your name and daily reward to see today’s reward progress.</p>
+          </div>
+          <div id="rewardBannerWeekly" class="reward-banner">
+            <strong id="rewardBannerWeeklyTitle">Weekly reward progress</strong>
+            <p id="rewardBannerWeeklyText">Add a weekly reward to track this week’s progress.</p>
+          </div>
+          <div id="rewardBannerMonthly" class="reward-banner">
+            <strong id="rewardBannerMonthlyTitle">Monthly reward progress</strong>
+            <p id="rewardBannerMonthlyText">Add a monthly reward to track this month’s progress.</p>
+          </div>
+          <div id="rewardBannerYearly" class="reward-banner">
+            <strong id="rewardBannerYearlyTitle">Yearly reward progress</strong>
+            <p id="rewardBannerYearlyText">Add a yearly reward to track this year’s progress.</p>
+          </div>
+        </div>
+      </div>
+      <div class="hero-date" id="todayLabel"></div>
+    </header>
+
+    <main class="layout">
+      <section class="card form-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Set goal</p>
+            <h2>Add or update a personal goal</h2>
+          </div>
+        </div>
+
+        <form id="goalForm" class="goal-form">
+          <label>
+            Update existing goal
+            <select id="goalPicker" name="goalPicker">
+              <option value="">Create a new goal</option>
+            </select>
+          </label>
+          <div class="three-up">
+            <label>
+              Goal title
+              <input id="goalTitle" name="goalTitle" type="text" placeholder="Example: Pay electricity bill" required>
+            </label>
+            <label>
+              Due date (optional)
+              <input id="goalDate" name="goalDate" type="date">
+            </label>
+            <label>
+              Goal time (optional)
+              <input id="goalTime" name="goalTime" type="time">
+            </label>
+          </div>
+          <div class="two-up">
+            <label>
+              Notes
+              <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
+            </label>
+            <label>
+              Goal reward
+              <input id="goalReward" name="goalReward" type="text" placeholder="Example: Buy new shoes">
+            </label>
+          </div>
+          <div class="two-up">
+            <label>
+              Repeat
+              <select id="goalRepeat" name="goalRepeat">
+                <option value="none">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+          </div>
+          <div id="customRepeatWrap" class="two-up" hidden>
+            <label>
+              Repeat every
+              <input id="goalRepeatInterval" name="goalRepeatInterval" type="number" min="1" step="1" value="2">
+            </label>
+            <label>
+              Unit
+              <select id="goalRepeatUnit" name="goalRepeatUnit">
+                <option value="day">Days</option>
+                <option value="week">Weeks</option>
+                <option value="month">Months</option>
+                <option value="year">Years</option>
+              </select>
+            </label>
+          </div>
+          <button id="goalSubmitButton" type="submit" class="primary-btn">Save goal</button>
+        </form>
+
+        <form id="updateGoalForm" class="goal-form">
+          <div class="two-up">
+            <label>
+              Status
+              <select id="updateGoalStatus" name="updateGoalStatus">
+                <option value="not-started">Not started</option>
+                <option value="in-progress">In progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <label>
+              Progress %
+              <input id="updateGoalProgress" name="updateGoalProgress" type="number" min="0" max="100" step="5" value="0">
+            </label>
+          </div>
+          <button id="updateGoalSubmitButton" type="submit" class="primary-btn">Update goal</button>
+        </form>
+
+        <div id="subGoalSection" class="subgoal-panel" hidden>
+          <div class="section-heading subgoal-heading">
+            <div>
+              <p class="section-label">Sub-goals</p>
+              <h2>Break this goal into smaller steps</h2>
+            </div>
+          </div>
+          <form id="subGoalForm" class="goal-form">
+            <div class="two-up">
+              <label>
+                Sub-goal title
+                <input id="subGoalTitle" name="subGoalTitle" type="text" placeholder="Example: Draft outline" required>
+              </label>
+              <label>
+                Due date
+                <input id="subGoalDate" name="subGoalDate" type="date" required>
+              </label>
+            </div>
+            <button id="subGoalSubmitButton" type="submit" class="primary-btn">Add sub-goal</button>
+          </form>
+          <div id="selectedSubGoalList" class="subgoal-list"></div>
+        </div>
+
+      </section>
+
+      <section class="card stats-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Visual status</p>
+            <h2>Goal progress overview</h2>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection">
+            <span>Planned goals</span>
+            <strong id="totalGoals">0</strong>
+          </button>
+          <button class="stat-box stat-button stat-button--warning" type="button" data-target="allGoalsSection" data-range="today">
+            <span>Due today</span>
+            <strong id="todayGoals">0</strong>
+          </button>
+          <button class="stat-box stat-button" type="button" data-target="allGoalsSection">
+            <span>Upcoming</span>
+            <strong id="upcomingGoals">0</strong>
+          </button>
+          <button class="stat-box stat-button stat-button--success" type="button" data-target="allGoalsSection" data-range="today" data-status="completed">
+            <span>Completed today</span>
+            <strong id="todayCompletedGoals">0</strong>
+          </button>
+          <button class="stat-box stat-button stat-button--progress" type="button" data-target="allGoalsSection" data-range="today" data-status="in-progress">
+            <span>In progress today</span>
+            <strong id="todayInProgressGoals">0</strong>
+          </button>
+          <button class="stat-box stat-button stat-button--danger" type="button" data-target="allGoalsSection" data-range="all" data-status="due-not-completed">
+            <span>Due and not completed</span>
+            <strong id="dueNotCompletedGoals">0</strong>
+          </button>
+        </div>
+
+        <div class="progress-stack">
+          <div class="progress-panel">
+            <div class="progress-copy">
+              <span>Daily progress</span>
+              <strong id="dailyProgressValue">0%</strong>
+            </div>
+            <div class="progress-bar">
+              <div id="dailyProgressFill" class="progress-fill"></div>
+            </div>
+          </div>
+          <div class="progress-panel">
+            <div class="progress-copy">
+              <span>Weekly progress</span>
+              <strong id="weeklyProgressValue">0%</strong>
+            </div>
+            <div class="progress-bar">
+              <div id="weeklyProgressFill" class="progress-fill"></div>
+            </div>
+          </div>
+          <div class="progress-panel">
+            <div class="progress-copy">
+              <span>Yearly progress</span>
+              <strong id="yearlyProgressValue">0%</strong>
+            </div>
+            <div class="progress-bar">
+              <div id="yearlyProgressFill" class="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="allGoalsSection" class="card all-goals-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">All goals</p>
+            <h2>Goal list table</h2>
+          </div>
+          <div class="report-controls">
+            <label class="period-picker">
+              Show by
+              <select id="goalListRange">
+                <option value="all" selected>All</option>
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+                <option value="calendar">Calendar</option>
+              </select>
+            </label>
+            <label id="goalListCalendarWrap" class="period-picker" hidden>
+              Calendar
+              <input id="goalListCalendarDate" type="date">
+            </label>
+            <label class="period-picker">
+              Status
+              <select id="goalListStatus">
+                <option value="all" selected>All</option>
+                <option value="due-not-completed">Due and not completed</option>
+                <option value="not-started">Not started</option>
+                <option value="in-progress">In progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <button id="toggleGoalTableButton" class="ghost-btn compact-btn" type="button" aria-expanded="true" aria-controls="goalTableWrap">
+              Collapse list
+            </button>
+          </div>
+        </div>
+        <div id="goalTableWrap" class="goal-table-wrap">
+          <div class="goal-table-head">
+            <span>Goal</span>
+            <span>Due date</span>
+            <span>Status</span>
+            <span>Progress</span>
+            <span>Success</span>
+            <span>Repeat</span>
+            <span>Notes</span>
+            <span>Reward</span>
+            <span>Action</span>
+          </div>
+          <div id="goalList" class="goal-table"></div>
+          <button id="resetButton" class="ghost-btn" type="button">Reset all goals</button>
+        </div>
+      </section>
+
+      <section class="card report-card">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Performance report</p>
+            <h2>Day, month, and year trends</h2>
+          </div>
+          <div class="report-controls">
+            <label class="period-picker">
+              Goal
+              <select id="goalPerformanceGoal"></select>
+            </label>
+            <label class="period-picker">
+              View
+              <select id="reportRange">
+                <option value="day" selected>Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+              </select>
+            </label>
+            <label class="period-picker">
+              Period
+              <select id="reportPeriod"></select>
+            </label>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-header">
+            <span>Daily status</span>
+            <strong id="dailyStatusCaption">Today</strong>
+          </div>
+          <div class="daily-status-wrap">
+            <div class="donut-card">
+              <div id="dailyDonut" class="donut-chart">
+                <div class="donut-hole">
+                  <strong id="dailyDonutValue">0%</strong>
+                  <span>Done today</span>
+                </div>
+              </div>
+            </div>
+            <div id="dailyStatusLegend" class="daily-legend"></div>
+          </div>
+        </div>
+
+          <div class="chart-panel">
+            <div class="chart-header">
+              <span>Performance by period</span>
+              <strong id="chartCaption">Monthly view</strong>
+            </div>
+            <div id="trendChart" class="trend-chart" aria-label="Performance chart"></div>
+          </div>
+
+          <div class="chart-panel">
+            <div class="chart-header">
+              <span>Selected goal performance</span>
+              <strong id="goalPerformanceCaption">Choose a goal</strong>
+            </div>
+            <div id="goalPerformanceList" class="performance-list"></div>
+          </div>
+
+          <div class="summary-report">
+          <div class="chart-header">
+            <span>Summary report</span>
+            <strong id="summaryReportCaption">Selected period</strong>
+          </div>
+          <div class="summary-report-grid">
+            <article class="report-box">
+              <span class="report-label">Completed</span>
+              <strong id="summaryCompleted">0</strong>
+              <p id="summaryCompletedText" class="report-text">No completed goals in this period.</p>
+            </article>
+            <article class="report-box">
+              <span class="report-label">Not done</span>
+              <strong id="summaryOutstanding">0</strong>
+              <p id="summaryOutstandingText" class="report-text">No outstanding goals in this period.</p>
+            </article>
+          </div>
+          <article class="report-box summary-narrative">
+            <span class="report-label">Report summary</span>
+            <strong id="summaryProgress">0%</strong>
+            <p id="summaryNarrative" class="report-text">Choose a period to see your completed work, missed work, and overall progress.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="rebuilt-dashboard.js?v=2026-04-23-1"></script>
+</body>
+</html>
