@@ -960,7 +960,6 @@ select:focus {
   -webkit-overflow-scrolling: touch;
 }
 
-.goal-table-head,
 .goal-table {
   min-width: 860px;
 }
@@ -993,20 +992,11 @@ select:focus {
   padding: 16px;
 }
 
-.goal-table-head,
 .goal-table-row {
   display: grid;
   grid-template-columns: 1.55fr 0.9fr 0.85fr 0.7fr 0.95fr 1.1fr 1.35fr 1.35fr;
   gap: 12px;
   align-items: center;
-}
-
-.goal-table-head {
-  padding: 0 4px 12px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .goal-table {

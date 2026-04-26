@@ -474,6 +474,64 @@ function recordGoalHistory(goal) {
     .slice(-120);
 }
 
+function getHistoryEntriesForPeriod(goal, start, end) {
+  if (!Array.isArray(goal.history) || !goal.history.length) {
+    return [];
+  }
+
+  return goal.history
+    .filter((entry) => {
+      const entryDate = new Date(entry.date);
+      const normalizedDate = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+      return !isBeforeDay(normalizedDate, start) && !isAfterDay(normalizedDate, end);
+    })
+    .sort((left, right) => new Date(left.date) - new Date(right.date));
+}
+
+function getGoalStateForPeriod(goal, start, end) {
+  const entries = getHistoryEntriesForPeriod(goal, start, end);
+  if (!entries.length) {
+    return { status: "not-started", progress: 0 };
+  }
+
+  const latest = entries[entries.length - 1];
+  return {
+    status: normalizeStatus(latest.status),
+    progress: clampNumber(latest.progress, 0, 100, 0),
+  };
+}
+
+function summarizeGoalsForPeriod(start, end) {
+  const scheduledGoals = state.goals.filter((goal) => goalOccursWithin(goal, start, end));
+  let completed = 0;
+  let inProgress = 0;
+  let notStarted = 0;
+
+  scheduledGoals.forEach((goal) => {
+    const periodState = getGoalStateForPeriod(goal, start, end);
+    if (periodState.status === "completed") {
+      completed += 1;
+      return;
+    }
+    if (periodState.status === "in-progress") {
+      inProgress += 1;
+      return;
+    }
+    notStarted += 1;
+  });
+
+  const total = scheduledGoals.length;
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+
+  return {
+    total,
+    completed,
+    inProgress,
+    notStarted,
+    percent,
+  };
+}
+
 function getRepeatLabel(goal) {
   if (goal.repeat === "none") return "One time";
   if (goal.repeat === "daily") return "Repeats daily";
@@ -752,8 +810,9 @@ function renderReports() {
   }
 
   const currentValue = state.ui.reportPeriod;
-  if (!periods.some((period) => period.value === currentValue)) {
-    state.ui.reportPeriod = periods[periods.length - 1].value;
+  const activeValue = getActivePeriodValue(range, periods);
+  if (!currentValue || !periods.some((period) => period.value === currentValue)) {
+    state.ui.reportPeriod = activeValue || periods[periods.length - 1].value;
   }
 
   elements.reportPeriod.innerHTML = periods
@@ -762,16 +821,12 @@ function renderReports() {
   elements.reportPeriod.value = state.ui.reportPeriod;
 
   const selected = periods.find((period) => period.value === state.ui.reportPeriod) || periods[periods.length - 1];
-  const goals = state.goals.filter((goal) => goalOccursWithin(goal, selected.start, selected.end));
-  const completed = goals.filter((goal) => goal.status === "completed").length;
-  const inProgress = goals.filter((goal) => goal.status === "in-progress").length;
-  const notStarted = goals.filter((goal) => goal.status === "not-started").length;
-  const total = goals.length;
-  const percent = total ? Math.round((completed / total) * 100) : 0;
+  const { completed, inProgress, notStarted, total, percent } = summarizeGoalsForPeriod(selected.start, selected.end);
 
   elements.dailyStatusCaption.textContent = selected.label;
   elements.dailyDonutValue.textContent = total ? `${percent}%` : "0%";
-  elements.dailyDonut.style.background = `conic-gradient(var(--accent) ${percent * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
+  const donutColor = completed > 0 && completed === total ? "var(--success)" : "var(--accent)";
+  elements.dailyDonut.style.background = `conic-gradient(${donutColor} ${percent * 3.6}deg, rgba(255,255,255,0.1) 0deg)`;
   elements.dailyStatusLegend.innerHTML = [
     legendItem("Completed", completed, "#56d6a2"),
     legendItem("In progress", inProgress, "#ffcc66"),
@@ -791,61 +846,103 @@ function renderReports() {
 }
 
 function buildReportPeriods(range) {
-  const today = getToday();
+  const { startDate, endDate } = getReportDateBounds();
 
   if (range === "day") {
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = addDays(today, index - 6);
-      return {
+    const periods = [];
+    for (let date = new Date(startDate); !isAfterDay(date, endDate); date = addDays(date, 1)) {
+      periods.push({
         value: toIsoDate(date),
         label: formatLongDate(date),
-        start: date,
-        end: date,
-      };
-    });
+        start: new Date(date),
+        end: new Date(date),
+      });
+    }
+    return periods;
   }
 
   if (range === "week") {
-    return Array.from({ length: 6 }, (_, index) => {
-      const date = addDays(startOfWeek(today), (index - 5) * 7);
-      return {
-        value: `${toIsoDate(startOfWeek(date))}-week`,
-        label: `${formatDate(startOfWeek(date))} to ${formatDate(endOfWeek(date))}`,
-        start: startOfWeek(date),
-        end: endOfWeek(date),
-      };
-    });
+    const periods = [];
+    for (
+      let date = startOfWeek(startDate);
+      !isAfterDay(date, endDate);
+      date = addDays(date, 7)
+    ) {
+      const start = startOfWeek(date);
+      const end = endOfWeek(date);
+      periods.push({
+        value: `${toIsoDate(start)}-week`,
+        label: `${formatDate(start)} to ${formatDate(end)}`,
+        start,
+        end,
+      });
+    }
+    return periods;
   }
 
   if (range === "month") {
-    return Array.from({ length: 6 }, (_, index) => {
-      const date = addMonths(startOfMonth(today), index - 5);
-      return {
+    const periods = [];
+    for (
+      let date = startOfMonth(startDate);
+      !isAfterDay(date, endDate);
+      date = addMonths(date, 1)
+    ) {
+      periods.push({
         value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
         label: new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric" }).format(date),
         start: startOfMonth(date),
         end: endOfMonth(date),
-      };
-    });
+      });
+    }
+    return periods;
   }
 
-  return Array.from({ length: 5 }, (_, index) => {
-    const year = today.getFullYear() - 4 + index;
-    const date = new Date(year, 0, 1);
-    return {
-      value: `${year}`,
-      label: `${year}`,
+  const periods = [];
+  for (
+    let date = startOfYear(startDate);
+    !isAfterDay(date, endDate);
+    date = addYears(date, 1)
+  ) {
+    periods.push({
+      value: `${date.getFullYear()}`,
+      label: `${date.getFullYear()}`,
       start: startOfYear(date),
       end: endOfYear(date),
-    };
-  });
+    });
+  }
+  return periods;
+}
+
+function getReportDateBounds() {
+  const today = getToday();
+  const goalDates = state.goals
+    .flatMap((goal) => [goal.dueDate, ...(goal.subGoals || []).map((subGoal) => subGoal.dueDate)])
+    .map(dateFromIso)
+    .filter(Boolean)
+    .sort((left, right) => left - right);
+
+  if (!goalDates.length) {
+    return { startDate: today, endDate: today };
+  }
+
+  const firstGoalDate = goalDates[0];
+  const lastGoalDate = goalDates[goalDates.length - 1];
+  return {
+    startDate: isAfterDay(firstGoalDate, today) ? today : firstGoalDate,
+    endDate: isAfterDay(today, lastGoalDate) ? today : lastGoalDate,
+  };
+}
+
+function getActivePeriodValue(range, periods) {
+  const today = getToday();
+  const active = periods.find((period) => !isAfterDay(period.start, today) && !isAfterDay(today, period.end));
+  return active?.value || "";
 }
 
 function buildTrendBars(range) {
   const periods = buildReportPeriods(range);
   return periods.map((period) => {
-    const goals = state.goals.filter((goal) => goalOccursWithin(goal, period.start, period.end));
-    const percent = percentFromGoals(goals);
+    const { total, percent } = summarizeGoalsForPeriod(period.start, period.end);
     const barClass = percent >= 80 ? "good" : percent >= 40 ? "mid" : "low";
     const shortLabel =
       range === "day"
@@ -860,7 +957,7 @@ function buildTrendBars(range) {
       <div class="chart-col">
         <div class="chart-value">${percent}%</div>
         <div class="chart-bar-wrap">
-          ${goals.length
+          ${total
             ? `<div class="chart-bar ${barClass}" style="height:${Math.max(8, percent)}%"></div>`
             : '<div class="chart-empty">No data</div>'}
         </div>
