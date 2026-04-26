@@ -8,8 +8,11 @@ const elements = {
   profileForm: $("profileForm"),
   profileName: $("profileName"),
   todayLabel: $("todayLabel"),
+  homeActionMode: $("homeActionMode"),
   goalForm: $("goalForm"),
+  goalTitleField: $("goalTitleField"),
   goalPicker: $("goalPicker"),
+  updateGoalSection: $("updateGoalSection"),
   goalTitle: $("goalTitle"),
   goalDate: $("goalDate"),
   goalTime: $("goalTime"),
@@ -84,6 +87,7 @@ const state = loadState();
 initialize();
 
 function initialize() {
+  state.ui.activeView = "home";
   elements.goalListCalendarDate.value = toIsoDate(getToday());
   elements.reportRange.value = state.ui.reportRange || "day";
   updateCustomRepeatVisibility();
@@ -91,6 +95,26 @@ function initialize() {
   registerPwa();
   wireEvents();
   render({ skipSave: true });
+  queueMicrotask(() => {
+    if (elements.homeActionMode.value === "create") {
+      focusGoalTitleField();
+    }
+  });
+}
+
+function focusGoalTitleField() {
+  const target = elements.goalTitleField || elements.goalTitle;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  window.setTimeout(() => {
+    elements.goalTitle.focus({ preventScroll: true });
+    elements.goalTitle.classList.remove("field-highlight");
+    void elements.goalTitle.offsetWidth;
+    elements.goalTitle.classList.add("field-highlight");
+    window.setTimeout(() => {
+      elements.goalTitle.classList.remove("field-highlight");
+    }, 1800);
+  }, 120);
 }
 
 function loadState() {
@@ -552,7 +576,7 @@ function renderViewState() {
 
 function renderGoalPicker() {
   const current = state.ui.selectedGoalId;
-  const options = ['<option value="">Create a new goal</option>']
+  const options = ['<option value="">Select a goal</option>']
     .concat(
       [...state.goals].sort(sortGoals).map((goal) => {
         const due = goal.dueDate ? ` - ${formatDate(goal.dueDate)}` : "";
@@ -567,6 +591,9 @@ function renderGoalPicker() {
 
 function renderSelectedGoal() {
   const goal = selectedGoal();
+  const isUpdateMode = elements.homeActionMode.value === "update";
+  elements.updateGoalSection.hidden = !isUpdateMode;
+  elements.updateGoalForm.hidden = !isUpdateMode;
   elements.subGoalSection.hidden = !goal;
   elements.updateGoalStatus.disabled = !goal;
   elements.updateGoalProgress.disabled = !goal;
@@ -929,6 +956,27 @@ function wireEvents() {
     render();
   });
 
+  elements.homeActionMode.addEventListener("change", () => {
+    if (elements.homeActionMode.value === "update") {
+      render({ keepTimestamp: true, skipSave: true });
+      elements.updateGoalSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      elements.goalPicker.focus();
+      return;
+    }
+
+    state.ui.selectedGoalId = "";
+    render({ keepTimestamp: true });
+    focusGoalTitleField();
+  });
+
+  elements.homeActionMode.addEventListener("click", () => {
+    if (elements.homeActionMode.value === "create") {
+      state.ui.selectedGoalId = "";
+      render({ keepTimestamp: true, skipSave: true });
+      focusGoalTitleField();
+    }
+  });
+
   elements.viewTabs.forEach((button) => {
     button.addEventListener("click", () => {
       state.ui.activeView = button.dataset.viewTab;
@@ -938,6 +986,9 @@ function wireEvents() {
   });
 
   elements.goalPicker.addEventListener("change", () => {
+    if (elements.goalPicker.value) {
+      elements.homeActionMode.value = "update";
+    }
     state.ui.selectedGoalId = elements.goalPicker.value;
     render({ keepTimestamp: true });
   });

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2026-04-25-6">
+  <link rel="stylesheet" href="styles.css?v=2026-04-25-7">
 </head>
 <body>
   <div class="app-shell">
@@ -43,7 +43,7 @@
     </nav>
 
     <main class="layout">
-      <section class="card stats-card" data-view-panel="home">
+      <section class="card stats-card" data-view-panel="goals">
         <div class="section-heading">
           <div>
             <p class="section-label">Visual status</p>
@@ -219,15 +219,19 @@
           </div>
         </div>
 
-        <form id="goalForm" class="goal-form">
-          <label>
-            Update existing goal
-            <select id="goalPicker" name="goalPicker">
-              <option value="">Create a new goal</option>
+        <div class="report-controls action-switch">
+          <label class="period-picker">
+            Goal action
+            <select id="homeActionMode">
+              <option value="create" selected>Create a new goal</option>
+              <option value="update">Update existing goal</option>
             </select>
           </label>
+        </div>
+
+        <form id="goalForm" class="goal-form">
           <div class="three-up">
-            <label>
+            <label id="goalTitleField">
               Goal title
               <input id="goalTitle" name="goalTitle" type="text" placeholder="Example: Pay electricity bill" required>
             </label>
@@ -275,6 +279,23 @@
           <button id="goalSubmitButton" type="submit" class="primary-btn">Save goal</button>
         </form>
 
+        <div id="updateGoalSection" class="subgoal-panel" hidden>
+          <div class="section-heading subgoal-heading">
+            <div>
+              <p class="section-label">Update goal</p>
+              <h2>Pick a goal and update it</h2>
+            </div>
+          </div>
+          <div class="goal-form">
+            <label>
+              Goal to update
+              <select id="goalPicker" name="goalPicker">
+                <option value="">Select a goal</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
         <form id="updateGoalForm" class="goal-form">
           <div class="two-up">
             <label>
@@ -320,6 +341,6 @@
     </main>
   </div>
 
-  <script src="rebuilt-dashboard.js?v=2026-04-25-6"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-25-7"></script>
 </body>
 </html>
