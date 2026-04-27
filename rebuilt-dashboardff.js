@@ -23,7 +23,6 @@ const elements = {
   goalRepeatUnit: $("goalRepeatUnit"),
   goalSubmitButton: $("goalSubmitButton"),
   updateGoalForm: $("updateGoalForm"),
-  updateGoalTitle: $("updateGoalTitle"),
   updateGoalStatus: $("updateGoalStatus"),
   updateGoalProgress: $("updateGoalProgress"),
   updateGoalSubmitButton: $("updateGoalSubmitButton"),
@@ -502,11 +501,8 @@ function getGoalStateForPeriod(goal, start, end) {
   };
 }
 
-function summarizeGoalsForPeriod(start, end, selectedReportGoal = "all") {
-  let scheduledGoals = state.goals.filter((goal) => goalOccursWithin(goal, start, end));
-  if (selectedReportGoal !== "all") {
-  scheduledGoals = scheduledGoals.filter(goal => goal.id === selectedReportGoal);
-}
+function summarizeGoalsForPeriod(start, end) {
+  const scheduledGoals = state.goals.filter((goal) => goalOccursWithin(goal, start, end));
   let completed = 0;
   let inProgress = 0;
   let notStarted = 0;
@@ -664,7 +660,6 @@ function renderSelectedGoal() {
   if (!goal) {
     elements.goalTitle.value = "";
     elements.goalDate.value = "";
-    elements.updateGoalTitle.value = "";
     elements.goalTime.value = "";
     elements.goalNotes.value = "";
     elements.goalRepeat.value = "none";
@@ -679,7 +674,6 @@ function renderSelectedGoal() {
   }
 
   elements.goalTitle.value = goal.title;
-  elements.updateGoalTitle.value = goal.title;
   elements.goalDate.value = goal.dueDate;
   elements.goalTime.value = goal.time || "";
   elements.goalNotes.value = goal.notes || "";
@@ -827,10 +821,7 @@ function renderReports() {
   elements.reportPeriod.value = state.ui.reportPeriod;
 
   const selected = periods.find((period) => period.value === state.ui.reportPeriod) || periods[periods.length - 1];
-  // const { completed, inProgress, notStarted, total, percent } = summarizeGoalsForPeriod(selected.start, selected.end);
-  const selectedReportGoal = document.getElementById("reportGoal")?.value || "all";
-  const { completed, inProgress, notStarted, total, percent } =
-  summarizeGoalsForPeriod(selected.start, selected.end, selectedReportGoal);
+  const { completed, inProgress, notStarted, total, percent } = summarizeGoalsForPeriod(selected.start, selected.end);
 
   elements.dailyStatusCaption.textContent = selected.label;
   elements.dailyDonutValue.textContent = total ? `${percent}%` : "0%";
@@ -951,12 +942,7 @@ function getActivePeriodValue(range, periods) {
 function buildTrendBars(range) {
   const periods = buildReportPeriods(range);
   return periods.map((period) => {
-    const selectedReportGoal = document.getElementById("reportGoal")?.value || "all";
-    const { total, percent } = summarizeGoalsForPeriod(
-      period.start,
-      period.end,
-      selectedReportGoal
-);
+    const { total, percent } = summarizeGoalsForPeriod(period.start, period.end);
     const barClass = percent >= 80 ? "good" : percent >= 40 ? "mid" : "low";
     const shortLabel =
       range === "day"
@@ -1040,7 +1026,6 @@ function render(options = {}) {
   renderSelectedGoal();
   renderStats();
   renderGoalList();
-  populateReportGoalDropdown(); 
   renderReports();
   updateTableVisibility();
   updateCalendarVisibility();
@@ -1049,29 +1034,7 @@ function render(options = {}) {
     saveState({ keepTimestamp: options.keepTimestamp });
   }
 }
-function populateReportGoalDropdown() {
-  const reportGoal = document.getElementById("reportGoal");
-  if (!reportGoal) return;
 
-  const currentValue = reportGoal.value || "all";
-
-  reportGoal.innerHTML = '<option value="all">All goals</option>';
-
-  state.goals.forEach((goal) => {
-    const option = document.createElement("option");
-    option.value = goal.id;
-    option.textContent = goal.dueDate
-      ? `${goal.title} - ${new Date(goal.dueDate).toLocaleDateString()}`
-      : goal.title;
-
-    reportGoal.appendChild(option);
-  });
-
-  const stillExists =
-    currentValue === "all" || state.goals.some((goal) => goal.id === currentValue);
-
-  reportGoal.value = stillExists ? currentValue : "all";
-}
 function updateTableVisibility() {
   elements.goalTableWrap.hidden = state.ui.goalListCollapsed;
   elements.toggleGoalTableButton.textContent = state.ui.goalListCollapsed ? "Expand list" : "Collapse list";
@@ -1174,11 +1137,6 @@ function wireEvents() {
     event.preventDefault();
     const goal = selectedGoal();
     if (!goal) return;
-    const newTitle = elements.updateGoalTitle.value.trim();
-    if (newTitle) {
-      goal.title = newTitle;
-}
-    
 
     goal.status = normalizeStatus(elements.updateGoalStatus.value);
     goal.progress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
@@ -1186,7 +1144,6 @@ function wireEvents() {
     if (goal.status === "not-started") goal.progress = 0;
     goal.updatedAt = new Date().toISOString();
     recordGoalHistory(goal);
-    state.ui.selectedGoalId = goal.id;
     render();
   });
 
@@ -1308,7 +1265,4 @@ function wireEvents() {
     state.ui.reportPeriod = elements.reportPeriod.value;
     render({ keepTimestamp: true, skipSave: true });
   });
-  document.getElementById("reportGoal")?.addEventListener("change", () => {
-  render({ keepTimestamp: true, skipSave: true });
-});
 }

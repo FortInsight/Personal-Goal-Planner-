@@ -83,6 +83,7 @@ const stats = {
 };
 
 const reportElements = {
+  goal: document.getElementById("reportGoal"),
   range: document.getElementById("reportRange"),
   period: document.getElementById("reportPeriod"),
   dailyStatusCaption: document.getElementById("dailyStatusCaption"),
@@ -379,6 +380,7 @@ function render() {
   renderProfile();
   renderGoalTable(goalList, sortGoals(visibleGoals));
   renderGoalPicker();
+  populateReportGoalDropdown();
   renderReports();
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -386,7 +388,30 @@ function render() {
     console.error("Could not save planner data.", error);
   }
 }
+function populateReportGoalDropdown() {
+  const reportGoal = document.getElementById("reportGoal");
+  if (!reportGoal) return;
 
+  const currentValue = reportGoal.value;
+
+  reportGoal.innerHTML = '<option value="all">All goals</option>';
+
+  const sortedGoals = sortGoals(state.goals);
+
+  sortedGoals.forEach((goal) => {
+    const option = document.createElement("option");
+    option.value = goal.id;
+    option.textContent = goal.dueDate
+      ? `${goal.title} - ${formatShortDate(goal.dueDate)}`
+      : goal.title;
+
+    reportGoal.appendChild(option);
+  });
+
+  reportGoal.value = sortedGoals.some((goal) => goal.id === currentValue)
+    ? currentValue
+    : "all";
+}
 function renderGoalCollection(container, goals, isTodayView) {
   if (!goals.length) {
     container.innerHTML = isTodayView
