@@ -1479,3 +1479,18 @@ function recordGoalHistoryForDate(goal, date) {
 
   goal.history = goal.history.slice(-120);
 }
+document.querySelectorAll("[data-view-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const view = btn.dataset.viewTab;
+
+    document.querySelectorAll("[data-view-panel]").forEach((panel) => {
+      panel.style.display = panel.dataset.viewPanel === view ? "block" : "none";
+    });
+
+    document.querySelectorAll("[data-view-tab]").forEach((b) => {
+      b.classList.remove("is-active");
+    });
+
+    btn.classList.add("is-active");
+  });
+});
