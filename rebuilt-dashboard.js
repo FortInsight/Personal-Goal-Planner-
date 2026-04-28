@@ -1,13 +1,10 @@
 const SUPABASE_URL = "https://atdrcseaofseybsorhhr.supabase.co/rest/v1/";
 const SUPABASE_KEY = "sb_publishable_buo26QzG4HoNSL2Q03etaw_B4H4DvO8";
 
-let supabaseClient = null;
-
-if (SUPABASE_URL !== "YOUR_URL" && SUPABASE_KEY !== "YOUR_KEY") {
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-} else {
-  console.warn("Supabase not configured yet");
-}
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 // async function login(email) {
 //   const { data, error } = await supabase.auth.signInWithOtp({
 //     email: email,
