@@ -1,3 +1,50 @@
+
+const SUPABASE_URL = "https://github.com/FortInsight/Personal-Goal-Planner-";
+const SUPABASE_KEY = "sb_publishable_buo26QzG4HoNSL2Q03etaw_B4H4DvO8";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// async function login(email) {
+//   const { data, error } = await supabase.auth.signInWithOtp({
+//     email: email,
+//   });
+
+//   if (error) {
+//     alert("Login error: " + error.message);
+//   } else {
+//     alert("Check your email for login link!");
+//   }
+// }
+async function login(email) {
+  const message = document.getElementById("authMessage");
+  const button = document.getElementById("loginButton");
+
+  message.textContent = "";
+  button.disabled = true;
+  button.textContent = "Sending...";
+
+  if (!email) {
+    message.textContent = "Please enter your email.";
+    button.disabled = false;
+    button.textContent = "Send login link";
+    return;
+  }
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email,
+    options: {
+      emailRedirectTo: "https://fortinsight.com/goal.html"
+    }
+  });
+
+  if (error) {
+    message.textContent = "Error: " + error.message;
+  } else {
+    message.textContent = "Login link sent. Check your email.";
+  }
+
+  button.disabled = false;
+  button.textContent = "Send login link";
+}
 const STORAGE_KEY = "personal-daily-goals-v2";
 
 const defaultState = {

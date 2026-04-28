@@ -1178,3 +1178,13 @@ select:focus {
     min-width: 0;
   }
 }
+
+.app-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.app-logo {
+  max-width: 160px;
+  height: auto;
+}

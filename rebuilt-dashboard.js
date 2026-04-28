@@ -1,3 +1,74 @@
+const SUPABASE_URL = "https://github.com/FortInsight/Personal-Goal-Planner-";
+const SUPABASE_KEY = "sb_publishable_buo26QzG4HoNSL2Q03etaw_B4H4DvO8";
+
+let supabaseClient = null;
+
+if (SUPABASE_URL !== "YOUR_URL" && SUPABASE_KEY !== "YOUR_KEY") {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+  console.warn("Supabase not configured yet");
+}
+// async function login(email) {
+//   const { data, error } = await supabase.auth.signInWithOtp({
+//     email: email,
+//   });
+
+//   if (error) {
+//     alert("Login error: " + error.message);
+//   } else {
+//     alert("Check your email for login link!");
+//   }
+// }
+
+//   button.disabled = false;
+//   button.textContent = "Send login link";
+// }
+// const STORAGE_KEY = "personal-daily-goals-v2";
+
+// const defaultState = {
+//   goals: [],
+//   completions: [],
+//   profile: {
+//     name: ""
+//   }
+// };
+
+async function login(email) {
+  const message = document.getElementById("authMessage");
+  const button = document.getElementById("loginButton");
+
+  if (!supabaseClient) {
+    message.textContent = "Supabase not configured.";
+    return;
+  }
+
+  message.textContent = "";
+  button.disabled = true;
+  button.textContent = "Sending...";
+
+  if (!email) {
+    message.textContent = "Please enter your email.";
+    button.disabled = false;
+    button.textContent = "Send login link";
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email: email,
+    options: {
+      emailRedirectTo: "https://fortinsight.com/goal.html"
+    }
+  });
+
+  if (error) {
+    message.textContent = "Error: " + error.message;
+  } else {
+    message.textContent = "Login link sent. Check your email.";
+  }
+
+  button.disabled = false;
+  button.textContent = "Send login link";
+}
 const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v3";
 
 const $ = (id) => document.getElementById(id);
@@ -378,26 +449,59 @@ function getFilterRange() {
   const range = elements.goalListRange.value;
 
   if (range === "today") {
-    return { start: today, end: today, label: "Today" };
-  }
-  if (range === "tomorrow") {
-    const tomorrow = addDays(today, 1);
-    return { start: tomorrow, end: tomorrow, label: "Tomorrow" };
-  }
-  if (range === "week") {
-    return { start: startOfWeek(today), end: endOfWeek(today), label: "This week" };
-  }
-  if (range === "month") {
-    return { start: startOfMonth(today), end: endOfMonth(today), label: "This month" };
-  }
-  if (range === "year") {
-    return { start: startOfYear(today), end: endOfYear(today), label: "This year" };
-  }
-  if (range === "calendar") {
-    return { start: selectedCalendarDate, end: selectedCalendarDate, label: "Selected date" };
+    return {
+      start: selectedCalendarDate,
+      end: selectedCalendarDate,
+      label: formatLongDate(selectedCalendarDate),
+    };
   }
 
-  return { start: null, end: null, label: "All goals" };
+  if (range === "tomorrow") {
+    const tomorrow = addDays(selectedCalendarDate, 1);
+    return {
+      start: tomorrow,
+      end: tomorrow,
+      label: "Tomorrow",
+    };
+  }
+
+  if (range === "week") {
+    return {
+      start: startOfWeek(selectedCalendarDate),
+      end: endOfWeek(selectedCalendarDate),
+      label: "Selected week",
+    };
+  }
+
+  if (range === "month") {
+    return {
+      start: startOfMonth(selectedCalendarDate),
+      end: endOfMonth(selectedCalendarDate),
+      label: "Selected month",
+    };
+  }
+
+  if (range === "year") {
+    return {
+      start: startOfYear(selectedCalendarDate),
+      end: endOfYear(selectedCalendarDate),
+      label: "Selected year",
+    };
+  }
+
+  if (range === "calendar") {
+    return {
+      start: selectedCalendarDate,
+      end: selectedCalendarDate,
+      label: "Selected date",
+    };
+  }
+
+  return {
+    start: null,
+    end: null,
+    label: "All goals",
+  };
 }
 
 function goalOccursWithin(goal, start, end) {
@@ -446,7 +550,9 @@ function syncGoalFromSubGoals(goal) {
   goal.status = inProgress > 0 || completed > 0 ? "in-progress" : "not-started";
 }
 
-function getSuccess(goal) {
+function getSuccess(goal, date = getToday()) {
+  const stateForDate = getGoalStateForPeriod(goal, date, date);
+
   if (goal.subGoals.length) {
     const completed = goal.subGoals.filter((item) => item.status === "completed").length;
     const percent = Math.round((completed / goal.subGoals.length) * 100);
@@ -455,7 +561,8 @@ function getSuccess(goal) {
       text: `${percent}% (${completed}/${goal.subGoals.length})`,
     };
   }
-  const percent = clampNumber(goal.progress, 0, 100, 0);
+
+  const percent = clampNumber(stateForDate.progress, 0, 100, 0);
   return {
     pct: percent,
     text: `${percent}%`,
@@ -491,16 +598,28 @@ function getHistoryEntriesForPeriod(goal, start, end) {
 
 function getGoalStateForPeriod(goal, start, end) {
   const entries = getHistoryEntriesForPeriod(goal, start, end);
+
   if (!entries.length) {
-    return { status: "not-started", progress: 0 };
+    // KEY FIX: only reset for repeating goals
+    if (goal.repeat && goal.repeat !== "none") {
+      return { status: "not-started", progress: 0 };
+    }
+
+    // keep original for non-repeating goals
+    return {
+      status: normalizeStatus(goal.status),
+      progress: clampNumber(goal.progress, 0, 100, 0),
+    };
   }
 
   const latest = entries[entries.length - 1];
+
   return {
     status: normalizeStatus(latest.status),
     progress: clampNumber(latest.progress, 0, 100, 0),
   };
 }
+
 
 function summarizeGoalsForPeriod(start, end, selectedReportGoal = "all") {
   let scheduledGoals = state.goals.filter((goal) => goalOccursWithin(goal, start, end));
@@ -778,7 +897,9 @@ function renderGoalList() {
     ? goals
         .map((goal) => {
           const occurrence = firstOccurrenceWithin(goal, start, end);
-          const success = getSuccess(goal);
+          const occurrenceDate = occurrence || getToday();
+          const stateForDate = getGoalStateForPeriod(goal, occurrenceDate, occurrenceDate);
+          const success = getSuccess(goal, occurrenceDate);
           return `
             <article class="goal-table-row">
               <div class="goal-table-cell goal-table-title">${escapeHtml(goal.title)}</div>
@@ -786,15 +907,15 @@ function renderGoalList() {
                 ${occurrence ? formatDate(occurrence) : formatDate(goal.dueDate)}
                 ${goal.time ? `<div class="goal-table-notes">${escapeHtml(formatTime(goal.time))}</div>` : ""}
               </div>
-              <div class="goal-table-cell"><span class="pill">${statusLabel(goal.status)}</span></div>
-              <div class="goal-table-cell">${goal.progress}%</div>
+              <div class="goal-table-cell"><span class="pill">${statusLabel(stateForDate.status)}</span></div>
+              <div class="goal-table-cell">${stateForDate.progress}%</div>
               <div class="goal-table-cell">${success.text}</div>
               <div class="goal-table-cell"><span class="pill repeat-pill">${escapeHtml(getRepeatLabel(goal))}</span></div>
               <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.notes || "No notes")}</div>
               <div class="goal-table-cell">
                 <div class="goal-actions">
-                  <select class="status-select ${statusClass(goal.status)}" data-goal-id="${goal.id}">
-                    ${statusOptions(goal.status)}
+                  <select class="status-select ${statusClass(stateForDate.status)}" data-goal-id="${goal.id}">
+                    ${statusOptions(stateForDate.status)}
                   </select>
                   <button class="remove-btn" type="button" data-remove-goal="${goal.id}">Remove</button>
                 </div>
@@ -1089,6 +1210,10 @@ function wireEvents() {
     };
     render();
   });
+  document.getElementById("loginButton")?.addEventListener("click", () => {
+  const email = document.getElementById("email")?.value || "";
+  login(email);
+});
 
   elements.homeActionMode.addEventListener("change", () => {
     if (elements.homeActionMode.value === "update") {
@@ -1261,13 +1386,43 @@ function wireEvents() {
     if (!goalId) return;
     const goal = state.goals.find((item) => item.id === goalId);
     if (!goal) return;
+    const occurrenceDate = firstOccurrenceWithin(goal, getFilterRange().start, getFilterRange().end) || getToday();
+goal.status = normalizeStatus(target.value);
+goal.progress = goal.status === "completed" ? 100 : goal.status === "not-started" ? 0 : 50;
+goal.updatedAt = new Date().toISOString();
 
-    goal.status = normalizeStatus(target.value);
-    if (goal.status === "completed") goal.progress = 100;
-    if (goal.status === "not-started") goal.progress = 0;
-    goal.updatedAt = new Date().toISOString();
-    recordGoalHistory(goal);
-    render();
+recordGoalHistoryForDate(goal, occurrenceDate);
+
+if (goal.status === "completed" && goal.repeat && goal.repeat !== "none") {
+  const currentDueDate = dateFromIso(goal.dueDate) || getToday();
+
+  if (goal.repeat === "daily") {
+    goal.dueDate = toIsoDate(addDays(currentDueDate, 1));
+  } else if (goal.repeat === "weekly") {
+    goal.dueDate = toIsoDate(addDays(currentDueDate, 7));
+  } else if (goal.repeat === "monthly") {
+    goal.dueDate = toIsoDate(addMonths(currentDueDate, 1));
+  } else if (goal.repeat === "yearly") {
+    goal.dueDate = toIsoDate(addYears(currentDueDate, 1));
+  } else if (goal.repeat === "custom") {
+    const interval = Math.max(1, goal.repeatInterval || 1);
+
+    if (goal.repeatUnit === "day") {
+      goal.dueDate = toIsoDate(addDays(currentDueDate, interval));
+    } else if (goal.repeatUnit === "week") {
+      goal.dueDate = toIsoDate(addDays(currentDueDate, interval * 7));
+    } else if (goal.repeatUnit === "month") {
+      goal.dueDate = toIsoDate(addMonths(currentDueDate, interval));
+    } else if (goal.repeatUnit === "year") {
+      goal.dueDate = toIsoDate(addYears(currentDueDate, interval));
+    }
+  }
+
+  goal.status = "not-started";
+  goal.progress = 0;
+}
+
+render();
   });
 
   elements.goalList.addEventListener("click", (event) => {
@@ -1311,4 +1466,19 @@ function wireEvents() {
   document.getElementById("reportGoal")?.addEventListener("change", () => {
   render({ keepTimestamp: true, skipSave: true });
 });
+}
+function recordGoalHistoryForDate(goal, date) {
+  if (!goal) return;
+
+  if (!Array.isArray(goal.history)) {
+    goal.history = [];
+  }
+
+  goal.history.push({
+    date: date.toISOString(),
+    status: goal.status,
+    progress: goal.progress
+  });
+
+  goal.history = goal.history.slice(-120);
 }

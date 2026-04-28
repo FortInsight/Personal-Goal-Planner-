@@ -1,399 +1,306 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Personal Daily Goals Dashboard</title>
-  <meta name="theme-color" content="#0a224a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FortInsight | Data, AI, Analytics & Insights</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2026-04-26-1">
-</head>
-<body>
-  <div class="app-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Personal goal planner</p>
-        <h1>Plan goals, track today, and stay ahead.</h1>
-        <p class="hero-text">
-          Add as many goals as you want, set due dates, and let the dashboard show what is due today, completed, or still ahead.
-        </p>
-        <form id="profileForm" class="profile-form">
-          <div class="two-up">
-            <label>
-              Your name
-              <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
-            </label>
-          </div>
-        </form>
-      </div>
-      <div class="hero-date" id="todayLabel"></div>
-    </header>
+  <link rel="icon" href="assets/fortinsight-icon-192.png">
+  <link rel="apple-touch-icon" href="assets/fortinsight-icon-192.png">
+  <meta name="theme-color" content="#073763">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FortInsight">
 
-    <nav class="view-nav" aria-label="Planner sections">
-      <button class="view-tab is-active" type="button" data-view-tab="home">Create goal</button>
-      <button class="view-tab" type="button" data-view-tab="goals">Goals</button>
-      <button class="view-tab" type="button" data-view-tab="report">Report</button>
-    </nav>
-
-    <main class="layout">
-      <section class="card stats-card" data-view-panel="goals">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">Visual status</p>
-            <h2>Goal progress overview</h2>
-          </div>
-        </div>
-
-        <div class="stats-grid">
-          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection">
-            <span>Planned goals</span>
-            <strong id="totalGoals">0</strong>
-          </button>
-          <button class="stat-box stat-button stat-button--warning" type="button" data-target="allGoalsSection" data-range="today">
-            <span>Due today</span>
-            <strong id="todayGoals">0</strong>
-          </button>
-          <button class="stat-box stat-button stat-button--success" type="button" data-target="allGoalsSection" data-range="today" data-status="completed">
-            <span>Completed today</span>
-            <strong id="todayCompletedGoals">0</strong>
-          </button>
-          <button class="stat-box stat-button stat-button--progress" type="button" data-target="allGoalsSection" data-range="today" data-status="in-progress">
-            <span>In progress today</span>
-            <strong id="todayInProgressGoals">0</strong>
-          </button>
-          <button class="stat-box stat-button stat-button--danger" type="button" data-target="allGoalsSection" data-range="all" data-status="due-not-completed">
-            <span>Due and not completed</span>
-            <strong id="dueNotCompletedGoals">0</strong>
-          </button>
-        </div>
-
-      </section>
-
-      <section id="allGoalsSection" class="card all-goals-card" data-view-panel="goals">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">All goals</p>
-            <h2>Goal list</h2>
-          </div>
-          <div class="report-controls">
-            <label class="period-picker">
-              Show by
-              <select id="goalListRange">
-                <option value="all" selected>All</option>
-                <option value="today">Today</option>
-                <option value="tomorrow">Tomorrow</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="year">Year</option>
-                <option value="calendar">Calendar</option>
-              </select>
-            </label>
-            <label id="goalListCalendarWrap" class="period-picker" hidden>
-              Calendar
-              <input id="goalListCalendarDate" type="date">
-            </label>
-            <label class="period-picker">
-              Status
-              <select id="goalListStatus">
-                <option value="all" selected>All</option>
-                <option value="due-not-completed">Due and not completed</option>
-                <option value="not-started">Not started</option>
-                <option value="in-progress">In progress</option>
-                <option value="completed">Completed</option>
-              </select>
-            </label>
-            <button id="toggleGoalTableButton" class="ghost-btn compact-btn" type="button" aria-expanded="true" aria-controls="goalTableWrap">
-              Collapse list
-            </button>
-          </div>
-        </div>
-        <div id="goalTableWrap" class="goal-table-wrap">
-          <div id="goalList" class="goal-table"></div>
-          <button id="resetButton" class="ghost-btn" type="button">Reset all goals</button>
-        </div>
-      </section>
-
-      <section class="card report-card" data-view-panel="report">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">Performance report</p>
-            <h2>Day, month, and year trends</h2>
-          </div>
-          <div class="report-controls">
-            <label class="period-picker">
-              View
-              <select id="reportRange">
-                <option value="day" selected>Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="year">Year</option>
-              </select>
-            </label>
-            <label class="period-picker">
-              Period
-              <select id="reportPeriod"></select>
-            </label>
-            <label class="period-picker">
-              Goal
-              <select id="reportGoal">
-                <option value="all" selected>All goals</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div class="chart-panel">
-          <div class="chart-header">
-            <span>Daily status</span>
-            <strong id="dailyStatusCaption">Today</strong>
-          </div>
-          <div class="daily-status-wrap">
-            <div class="donut-card">
-              <div id="dailyDonut" class="donut-chart">
-                <div class="donut-hole">
-                  <strong id="dailyDonutValue">0%</strong>
-                  <span>Done today</span>
-                </div>
-              </div>
-            </div>
-            <div id="dailyStatusLegend" class="daily-legend"></div>
-          </div>
-        </div>
-
-        <div class="progress-stack">
-          <div class="progress-panel">
-            <div class="progress-copy">
-              <span>Daily progress</span>
-              <strong id="dailyProgressValue">0%</strong>
-            </div>
-            <div class="progress-bar">
-              <div id="dailyProgressFill" class="progress-fill"></div>
-            </div>
-          </div>
-          <div class="progress-panel">
-            <div class="progress-copy">
-              <span>Weekly progress</span>
-              <strong id="weeklyProgressValue">0%</strong>
-            </div>
-            <div class="progress-bar">
-              <div id="weeklyProgressFill" class="progress-fill"></div>
-            </div>
-          </div>
-          <div class="progress-panel">
-            <div class="progress-copy">
-              <span>Yearly progress</span>
-              <strong id="yearlyProgressValue">0%</strong>
-            </div>
-            <div class="progress-bar">
-              <div id="yearlyProgressFill" class="progress-fill"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="chart-panel">
-          <div class="chart-header">
-            <span>Performance by period</span>
-            <strong id="chartCaption">Monthly view</strong>
-          </div>
-          <div id="trendChart" class="trend-chart" aria-label="Performance chart"></div>
-        </div>
-
-      </section>
-
-      <section class="card form-card" data-view-panel="home">
-        <div class="section-heading">
-          <div>
-            <p class="section-label">Create goal</p>
-            <h2>Create goal and track progress</h2>
-          </div>
-        </div>
-
-        <div class="report-controls action-switch">
-          <label class="period-picker">
-            Goal action
-            <div class="action-mode-buttons" role="group" aria-label="Goal action">
-              <button type="button" class="action-mode-btn is-active" data-action-mode="create">Create a new goal</button>
-              <button type="button" class="action-mode-btn" data-action-mode="update">Update existing goal</button>
-            </div>
-            <select id="homeActionMode" hidden aria-hidden="true" tabindex="-1">
-              <option value="create" selected>Create a new goal</option>
-              <option value="update">Update existing goal</option>
-            </select>
-          </label>
-        </div>
-
-        <form id="goalForm" class="goal-form">
-          <div class="three-up">
-            <label id="goalTitleField">
-              Goal title
-              <input id="goalTitle" name="goalTitle" type="text" placeholder="Example: Pay electricity bill" required>
-            </label>
-            <label>
-              Due date (optional)
-              <input id="goalDate" name="goalDate" type="date">
-            </label>
-            <label>
-              Goal time (optional)
-              <input id="goalTime" name="goalTime" type="time">
-            </label>
-          </div>
-          <label>
-            Notes
-            <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
-          </label>
-          <div class="two-up">
-            <label>
-              Repeat
-              <select id="goalRepeat" name="goalRepeat">
-                <option value="none">Does not repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-                <option value="custom">Custom</option>
-              </select>
-            </label>
-          </div>
-          <div id="customRepeatWrap" class="two-up" hidden>
-            <label>
-              Repeat every
-              <input id="goalRepeatInterval" name="goalRepeatInterval" type="number" min="1" step="1" value="2">
-            </label>
-            <label>
-              Unit
-              <select id="goalRepeatUnit" name="goalRepeatUnit">
-                <option value="day">Days</option>
-                <option value="week">Weeks</option>
-                <option value="month">Months</option>
-                <option value="year">Years</option>
-              </select>
-            </label>
-          </div>
-          <button id="goalSubmitButton" type="submit" class="primary-btn">Save goal</button>
-        </form>
-
-        <div id="updateGoalSection" class="subgoal-panel" hidden>
-          <div class="section-heading subgoal-heading">
-            <div>
-              <p class="section-label">Update goal</p>
-              <h2>Pick a goal and update it</h2>
-              <label>
-                 Goal name
-                 <input id="updateGoalTitle" type="text" placeholder="Edit goal name">
-                </label>
-            </div>
-          </div>
-          <div class="goal-form">
-            <label>
-              Goal to update
-              <select id="goalPicker" name="goalPicker">
-                <option value="">Select a goal</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <form id="updateGoalForm" class="goal-form">
-          <div class="two-up">
-            <label>
-              Status
-              <select id="updateGoalStatus" name="updateGoalStatus">
-                <option value="not-started">Not started</option>
-                <option value="in-progress">In progress</option>
-                <option value="completed">Completed</option>
-              </select>
-            </label>
-            <label>
-              Progress %
-              <input id="updateGoalProgress" name="updateGoalProgress" type="number" min="0" max="100" step="5" value="0">
-            </label>
-          </div>
-          <button id="updateGoalSubmitButton" type="submit" class="primary-btn">Update goal</button>
-        </form>
-
-        <div id="subGoalSection" class="subgoal-panel" hidden>
-          <div class="section-heading subgoal-heading">
-            <div>
-              <p class="section-label">Sub-goals</p>
-              <h2>Break this goal into smaller steps</h2>
-            </div>
-          </div>
-          <form id="subGoalForm" class="goal-form">
-            <div class="two-up">
-              <label>
-                Sub-goal title
-                <input id="subGoalTitle" name="subGoalTitle" type="text" placeholder="Example: Draft outline" required>
-              </label>
-              <label>
-                Due date
-                <input id="subGoalDate" name="subGoalDate" type="date" required>
-              </label>
-            </div>
-            <button id="subGoalSubmitButton" type="submit" class="primary-btn">Add sub-goal</button>
-          </form>
-          <div id="selectedSubGoalList" class="subgoal-list"></div>
-        </div>
-
-      </section>
-    </main>
-  </div>
-
-  <script src="rebuilt-dashboard.js?v=2026-04-26-1"></script>
   <style>
-    .action-mode-buttons {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 8px;
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
-    .action-mode-btn {
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      background: rgba(255, 255, 255, 0.08);
+    body {
+      font-family: Arial, sans-serif;
+      background: #073763;
       color: #ffffff;
-      padding: 12px 16px;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 600;
+      line-height: 1.6;
     }
 
-    .action-mode-btn.is-active {
-      background: #ffffff;
-      color: #0a224a;
+    .hero {
+      min-height: 100vh;
+      background: #073763;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 50px 20px;
     }
-  </style>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const modeSelect = document.getElementById("homeActionMode");
-      const buttons = document.querySelectorAll(".action-mode-btn");
+    .hero-content {
+      max-width: 1050px;
+      margin: auto;
+    }
 
-      if (!modeSelect || buttons.length === 0) return;
+    .logo {
+      max-width: 360px;
+      width: 100%;
+      height: auto;
+      margin-bottom: 35px;
+    }
 
-      function setMode(mode) {
-        modeSelect.value = mode;
+    h1 {
+      font-size: 46px;
+      margin-bottom: 20px;
+      font-weight: 800;
+    }
 
-        buttons.forEach((button) => {
-          button.classList.toggle("is-active", button.dataset.actionMode === mode);
-        });
+    .tagline {
+      font-size: 22px;
+      color: #e1f0ff;
+      max-width: 900px;
+      margin: 0 auto 35px;
+    }
 
-        modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    .hero-buttons a {
+      display: inline-block;
+      margin: 10px;
+      padding: 14px 30px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .primary-btn {
+      background: #ff9f2a;
+      color: #061f3b;
+    }
+
+    .secondary-btn {
+      border: 1px solid #ffffff;
+      color: #ffffff;
+    }
+
+    section {
+      padding: 75px 20px;
+      max-width: 1150px;
+      margin: auto;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 36px;
+      margin-bottom: 18px;
+    }
+
+    .section-text {
+      text-align: center;
+      max-width: 850px;
+      margin: 0 auto 45px;
+      color: #d8ecff;
+      font-size: 18px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .card {
+      background: #17466f;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      padding: 30px 24px;
+      text-align: center;
+      min-height: 180px;
+    }
+
+    .card h3 {
+      color: #ffb45c;
+      margin-bottom: 14px;
+      font-size: 23px;
+    }
+
+    .card p {
+      color: #ffffff;
+      font-size: 16px;
+    }
+
+    .products-section {
+      background: #062f56;
+      max-width: 100%;
+    }
+
+    .products-inner {
+      max-width: 1150px;
+      margin: auto;
+    }
+
+    .product-card {
+      background: #17466f;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .product-card h3 {
+      color: #ffb45c;
+      font-size: 24px;
+      margin-bottom: 14px;
+    }
+
+    .product-card p {
+      color: #ffffff;
+      margin-bottom: 20px;
+    }
+
+    .product-link {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #ff9f2a;
+      color: #061f3b;
+      border-radius: 25px;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px;
+      background: #031f3b;
+      color: #aac8e8;
+    }
+
+    @media (max-width: 900px) {
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
       }
 
-      buttons.forEach((button) => {
-        button.addEventListener("click", function () {
-          setMode(button.dataset.actionMode);
-        });
-      });
-    });
-  </script>
+      h1 {
+        font-size: 34px;
+      }
+
+      .tagline {
+        font-size: 18px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .logo {
+        max-width: 260px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="hero">
+    <div class="hero-content">
+      <img src="assets/fortinsight-logo.png" alt="FortInsight Logo" class="logo" />
+
+      <h1>Data, AI, Analytics & Insight Solutions</h1>
+
+      <p class="tagline">
+        FortInsight builds simple digital products that help people track progress,
+        make better decisions, and turn information into useful insight.
+      </p>
+
+      <div class="hero-buttons">
+        <a href="#products" class="primary-btn">Explore Products</a>
+        <a href="#about" class="secondary-btn">About FortInsight</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="about">
+    <h2 class="section-title">About Us</h2>
+    <p class="section-text">
+<p class="section-text">
+  FortInsight builds practical, user-friendly digital products powered by data,
+  AI, analytics, and insight. Our solutions help individuals and businesses make
+  better decisions, supporting progress across areas such as learning, health,
+  and financial well-being.
+</p>
+    </p>
+  </section>
+
+  <section>
+    <h2 class="section-title">Our Focus</h2>
+    <p class="section-text">
+      We focus on solutions that combine technology, clarity, and practical value.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <h3>Data</h3>
+        <p>Organizing and transforming data into useful information.</p>
+      </div>
+
+      <div class="card">
+        <h3>AI</h3>
+        <p>Using intelligent tools to support smarter workflows and decisions.</p>
+      </div>
+
+      <div class="card">
+        <h3>Analytics</h3>
+        <p>Turning numbers into patterns, trends, and measurable progress.</p>
+      </div>
+
+      <div class="card">
+        <h3>Insights</h3>
+        <p>Helping users clearly understand what their data is saying.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="products" class="products-section">
+    <div class="products-inner">
+      <h2 class="section-title">Our Products</h2>
+      <p class="section-text">
+        Explore our growing suite of simple, practical products designed to help
+        users stay consistent, learn better, and make smarter decisions.
+      </p>
+
+      <div class="cards">
+        <div class="product-card">
+          <h3>Goal Planner</h3>
+          <p>Plan goals, track progress, and manage repeated habits.</p>
+          <a href="goal.html" class="product-link">Open Goal Planner</a>
+        </div>
+
+        <div class="product-card">
+          <h3>Math Quiz</h3>
+          <p>Practice math questions and track learning progress.</p>
+          <a href="#" class="product-link">Coming Soon</a>
+        </div>
+
+        <div class="product-card">
+          <h3>English Quiz</h3>
+          <p>Improve English skills with simple practice questions.</p>
+          <a href="#" class="product-link">Coming Soon</a>
+        </div>
+
+        <div class="product-card">
+          <h3>More Products</h3>
+          <p>Additional data, AI, and analytics solutions are in development.</p>
+          <a href="#" class="product-link">Coming Soon</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>© 2026 FortInsight. Data • AI • Analytics • Insights</p>
+  </footer>
 
 </body>
 </html>
