@@ -7,6 +7,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Daily Goals Dashboard</title>
+
   <meta name="theme-color" content="#0a224a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -30,23 +31,40 @@
         <p class="hero-text">
           Add as many goals as you want, set due dates, and let the dashboard show what is due today, completed, or still ahead.
         </p>
-        <form id="profileForm" class="profile-form">
-          <div class="two-up">
-            <label>
-              Create User Name
-              <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
-            </label>
-            <label>
-              Email
-              <input type="email" id="email" placeholder="Enter your email">
-            </label>
-            <button id="loginButton" type="button">
-              Send login link
-            </button>
 
-<p id="authMessage" style="margin-top:10px; font-size:14px;"></p>
-          </div>
-        </form>
+      <form id="profileForm" class="profile-form">
+        <div class="two-up">
+
+          <label>
+            Create User Name
+            <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
+          </label>
+
+          <label>
+            Email
+            <input type="email" id="authEmail" placeholder="Enter your email">
+          </label>
+
+          <label>
+            Password
+            <input type="password" id="authPassword" placeholder="Enter password">
+          </label>
+
+        </div>
+
+        <div class="two-up" style="margin-top:10px;">
+          <button id="signupButton" type="button" class="primary-btn">
+            Sign up
+          </button>
+
+          <button id="loginButton" type="button" class="primary-btn">
+            Login
+          </button>
+        </div>
+
+        <p id="authMessage" style="margin-top:10px; font-size:14px;"></p>
+
+      </form>
       </div>
       <div class="hero-date" id="todayLabel"></div>
     </header>
@@ -360,7 +378,7 @@
     </main>
   </div>
 
-  <script src="rebuilt-dashboard.js?v=2026-04-26-102"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-26-103"></script>
   <style>
     .action-mode-buttons {
       display: flex;

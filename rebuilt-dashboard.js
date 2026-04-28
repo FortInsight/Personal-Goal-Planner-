@@ -5,50 +5,70 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
-// async function login(email) {
-//   const { data, error } = await supabase.auth.signInWithOtp({
-//     email: email,
-//   });
 
-//   if (error) {
-//     alert("Login error: " + error.message);
-//   } else {
-//     alert("Check your email for login link!");
-//   }
-// }
+async function protectGoalPage() {
+  const { data } = await supabaseClient.auth.getSession();
 
-//   button.disabled = false;
-//   button.textContent = "Send login link";
-// }
-// const STORAGE_KEY = "personal-daily-goals-v2";
-
-// const defaultState = {
-//   goals: [],
-//   completions: [],
-//   profile: {
-//     name: ""
-//   }
-// };
-
-async function login(email) {
-  const message = document.getElementById("authMessage");
-  const button = document.getElementById("loginButton");
-
-  if (!supabaseClient) {
-    message.textContent = "Supabase not configured.";
-    return;
+  if (!data.session) {
+    window.location.href = "login.html";
   }
+}
+const state = loadState();
+protectGoalPage();
+
+initialize();
+
+
+async function signUpUser() {
+  const email = document.getElementById("authEmail")?.value.trim();
+  const password = document.getElementById("authPassword")?.value;
+  const message = document.getElementById("authMessage");
 
   message.textContent = "";
-  button.disabled = true;
-  button.textContent = "Sending...";
 
-  if (!email) {
-    message.textContent = "Please enter your email.";
-    button.disabled = false;
-    button.textContent = "Send login link";
+  if (!email || !password) {
+    message.textContent = "Please enter email and password.";
     return;
   }
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) {
+    message.textContent = "Sign up error: " + error.message;
+    return;
+  }
+
+  message.textContent = "Account created. You can now log in.";
+}
+
+async function loginUser() {
+  const email = document.getElementById("authEmail")?.value.trim();
+  const password = document.getElementById("authPassword")?.value;
+  const message = document.getElementById("authMessage");
+
+  message.textContent = "";
+
+  if (!email || !password) {
+    message.textContent = "Please enter email and password.";
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    message.textContent = "Login error: " + error.message;
+    return;
+  }
+
+  message.textContent = "Login successful. Opening planner...";
+  window.location.href = "goal.html";
+}
 
   const { error } = await supabaseClient.auth.signInWithOtp({
     email: email,
@@ -1494,3 +1514,8 @@ document.querySelectorAll("[data-view-tab]").forEach((btn) => {
     btn.classList.add("is-active");
   });
 });
+document.getElementById("signupButton")
+  ?.addEventListener("click", signUpUser);
+
+document.getElementById("loginButton")
+  ?.addEventListener("click", loginUser);
