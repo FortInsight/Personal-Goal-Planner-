@@ -363,26 +363,67 @@ async function saveState(options = {}) {
   await saveStateToSupabase();
 }
 
+// async function saveStateToSupabase() {
+//   const { data: { session } } = await supabaseClient.auth.getSession();
+//   const user = session?.user;
+
+//   if (!user) return;
+
+//   const { error } = await supabaseClient
+//     .from("goals")
+//     .upsert({
+//       user_id: user.id,
+//       goal_data: state,
+//       updated_at: new Date().toISOString()
+//     }, {
+//       onConflict: "user_id"
+//     });
+
+//   if (error) {
+//     console.error("Supabase save error:", error.message);
+//   }
+// }
 async function saveStateToSupabase() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   const user = session?.user;
 
   if (!user) return;
 
+  const { data: existing, error: findError } = await supabaseClient
+    .from("goals")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (findError) {
+    console.error("Supabase find error:", findError.message);
+    return;
+  }
+
+  if (existing?.id) {
+    const { error } = await supabaseClient
+      .from("goals")
+      .update({
+        goal_data: state,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id);
+
+    if (error) console.error("Supabase update error:", error.message);
+    return;
+  }
+
   const { error } = await supabaseClient
     .from("goals")
-    .upsert({
+    .insert({
       user_id: user.id,
       goal_data: state,
       updated_at: new Date().toISOString()
-    }, {
-      onConflict: "user_id"
     });
 
-  if (error) {
-    console.error("Supabase save error:", error.message);
-  }
+  if (error) console.error("Supabase insert error:", error.message);
 }
+
 
 async function loadStateFromSupabase() {
   const { data: { session } } = await supabaseClient.auth.getSession();
