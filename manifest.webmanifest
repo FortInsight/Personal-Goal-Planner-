@@ -2,7 +2,7 @@
   "name": "FortInsight",
   "short_name": "FortInsight",
   "description": "FortInsight products for data, AI, analytics, and practical insight tools.",
-  "start_url": "./index.html",
+  "start_url": "./home.html",
   "display": "standalone",
   "background_color": "#073763",
   "theme_color": "#073763",

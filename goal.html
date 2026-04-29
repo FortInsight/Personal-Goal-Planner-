@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0a224a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="manifest" href="planner.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,27 +20,42 @@
 <body class="planner-body">
   <div class="app-shell app-shell--planner">
     <header class="planner-topbar card">
+      <div id="plannerHeaderDetails" class="planner-header-details">
       <div class="planner-topbar__row">
         <div class="planner-brand">
-          <a href="index.html" class="planner-home-link" aria-label="Go to FortInsight home">
+          <a href="home.html" class="planner-home-link" aria-label="Go to FortInsight home">
             <img src="assets/fortinsight-logo.png" alt="FortInsight" class="app-logo">
           </a>
           <div class="planner-brand__copy">
-            <p class="eyebrow">Personal goal planner</p>
-            <h1>Planner Workspace</h1>
+            <h1>Goal Planner</h1>
           </div>
         </div>
-        <div class="planner-status">
-          <div class="planner-welcome">
-            <p class="section-label">Welcome</p>
+        <div class="planner-topbar__meta">
+          <div class="planner-welcome planner-welcome--stacked">
             <h2 id="welcomeMessage">Welcome</h2>
+          </div>
+          <div class="planner-topbar__actions">
+            <a href="home.html" class="ghost-btn planner-home-button">Home</a>
+            <div class="planner-account-actions">
+              <button id="accountShortcutButton" type="button" class="ghost-btn planner-account-button">
+                <span class="planner-account-avatar" aria-hidden="true"></span>
+                <span class="planner-account-copy">
+                  <strong>Account</strong>
+                  <small>Profile settings</small>
+                </span>
+              </button>
+              <button id="logoutButton" type="button" class="ghost-btn planner-logout">Sign out</button>
+            </div>
           </div>
           <div class="hero-date" id="todayLabel"></div>
         </div>
-        <div class="planner-topbar__meta">
-          <a href="index.html" class="ghost-btn planner-home-button">Home</a>
-          <button id="logoutButton" type="button" class="ghost-btn planner-logout">Sign out</button>
-        </div>
+      </div>
+      </div>
+
+      <div class="planner-header-toggle-row">
+        <button id="plannerHeaderToggle" class="ghost-btn planner-header-toggle" type="button" aria-expanded="true" aria-controls="plannerHeaderDetails">
+          Hide header
+        </button>
       </div>
 
       <div id="menuPanel" class="menu-panel">
@@ -79,6 +94,23 @@
           </label>
         </div>
 
+        <div id="updateGoalSection" class="subgoal-panel" hidden>
+          <div class="section-heading subgoal-heading">
+            <div>
+              <p class="section-label">Update goal</p>
+              <h2>Select a goal to update its details, date, repeat, status, and progress</h2>
+            </div>
+          </div>
+          <div class="goal-form">
+            <label>
+              Goal to update
+              <select id="goalPicker" name="goalPicker">
+                <option value="">Select a goal</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
         <form id="goalForm" class="goal-form">
           <div class="three-up">
             <label id="goalTitleField">
@@ -94,10 +126,6 @@
               <input id="goalTime" name="goalTime" type="time">
             </label>
           </div>
-          <label>
-            Notes
-            <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
-          </label>
           <div class="two-up">
             <label>
               Repeat
@@ -126,31 +154,20 @@
               </select>
             </label>
           </div>
+          <label>
+            Notes
+            <textarea id="goalNotes" name="goalNotes" rows="3" placeholder="Optional note"></textarea>
+          </label>
           <button id="goalSubmitButton" type="submit" class="primary-btn">Save goal</button>
         </form>
 
-        <div id="updateGoalSection" class="subgoal-panel" hidden>
+        <form id="updateGoalForm" class="goal-form">
           <div class="section-heading subgoal-heading">
             <div>
-              <p class="section-label">Update goal</p>
-              <h2>Pick a goal and update it</h2>
-              <label>
-                Goal name
-                <input id="updateGoalTitle" type="text" placeholder="Edit goal name">
-              </label>
+              <p class="section-label">Update progress</p>
+              <h2>Adjust the goal status and progress</h2>
             </div>
           </div>
-          <div class="goal-form">
-            <label>
-              Goal to update
-              <select id="goalPicker" name="goalPicker">
-                <option value="">Select a goal</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <form id="updateGoalForm" class="goal-form">
           <div class="two-up">
             <label>
               Status
@@ -351,6 +368,48 @@
           </div>
           <div id="trendChart" class="trend-chart" aria-label="Performance chart"></div>
         </div>
+
+        <div class="chart-panel">
+          <div class="chart-header">
+            <span>Completed goals</span>
+            <strong id="completedReportCaption">Selected period</strong>
+          </div>
+          <div id="completedReportList" class="completed-report-list"></div>
+        </div>
+      </section>
+
+      <section class="card report-card" data-view-panel="account">
+        <div class="section-heading">
+          <div>
+            <p class="section-label">Account settings</p>
+            <h2>Update your username, email, and password</h2>
+          </div>
+        </div>
+
+        <form id="accountForm" class="goal-form">
+          <div class="two-up">
+            <label>
+              Username
+              <input id="accountUserName" type="text" placeholder="Enter username" autocomplete="name">
+            </label>
+            <label>
+              Email
+              <input id="accountEmail" type="email" placeholder="Enter email" autocomplete="email">
+            </label>
+          </div>
+          <div class="two-up">
+            <label>
+              New password
+              <input id="accountPassword" type="password" placeholder="Leave blank to keep current password" autocomplete="new-password">
+            </label>
+            <label>
+              Confirm password
+              <input id="accountPasswordConfirm" type="password" placeholder="Confirm new password" autocomplete="new-password">
+            </label>
+          </div>
+          <button id="accountSubmitButton" type="submit" class="primary-btn">Save account changes</button>
+          <p id="accountMessage" class="auth-message"></p>
+        </form>
       </section>
     </main>
   </div>

@@ -59,9 +59,9 @@ a {
 .site-nav__links a.is-active,
 .site-nav__links a:hover,
 .site-nav__links a:focus-visible {
-  background: #ff9f2a;
-  color: #061f3b;
-  border-color: #ff9f2a;
+  background: #2196f3;
+  color: #ffffff;
+  border-color: #2196f3;
 }
 
 .hero {
@@ -119,8 +119,8 @@ h1 {
 
 .primary-btn,
 .product-link {
-  background: #ff9f2a;
-  color: #061f3b;
+  background: #2196f3;
+  color: #ffffff;
 }
 
 .secondary-btn,
@@ -170,7 +170,7 @@ h1 {
 .card h3,
 .product-card h3,
 .feature-panel h3 {
-  color: #ffb45c;
+  color: #2196f3;
   margin-bottom: 14px;
   font-size: 1.45rem;
 }

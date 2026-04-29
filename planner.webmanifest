@@ -1,0 +1,18 @@
+{
+  "name": "FortInsight Goal Planner",
+  "short_name": "Goal Planner",
+  "description": "Plan goals, track progress, and review performance across your devices.",
+  "start_url": "./goal.html",
+  "display": "standalone",
+  "background_color": "#0a224a",
+  "theme_color": "#0a224a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
