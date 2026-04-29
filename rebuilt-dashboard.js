@@ -251,7 +251,18 @@ if (window.location.pathname.includes("goal.html")) {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// document.addEventListener("DOMContentLoaded", () => {
+//   initialize();
+//   syncProfileFromSession();
+// });
+
+document.addEventListener("DOMContentLoaded", async () => {
+  if (window.location.pathname.includes("goal.html")) {
+    await protectGoalPage();
+  }
+
+  await loadStateFromSupabase();
+
   initialize();
   syncProfileFromSession();
 });
@@ -330,15 +341,70 @@ function normalizeState(value) {
   return { ...fallback, ...next };
 }
 
-function saveState(options = {}) {
-  state.meta.updatedAt = options.keepTimestamp ? state.meta.updatedAt : new Date().toISOString();
+// function saveState(options = {}) {
+//   state.meta.updatedAt = options.keepTimestamp ? state.meta.updatedAt : new Date().toISOString();
+//   try {
+//     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+//   } catch (error) {
+//     console.error("Could not save planner data.", error);
+//   }
+// }
+async function saveState(options = {}) {
+  state.meta.updatedAt = options.keepTimestamp
+    ? state.meta.updatedAt
+    : new Date().toISOString();
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (error) {
     console.error("Could not save planner data.", error);
   }
+
+  await saveStateToSupabase();
 }
 
+async function saveStateToSupabase() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const user = session?.user;
+
+  if (!user) return;
+
+  const { error } = await supabaseClient
+    .from("goals")
+    .upsert({
+      user_id: user.id,
+      goal_data: state,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "user_id"
+    });
+
+  if (error) {
+    console.error("Supabase save error:", error.message);
+  }
+}
+
+async function loadStateFromSupabase() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const user = session?.user;
+
+  if (!user) return;
+
+  const { data, error } = await supabaseClient
+    .from("goals")
+    .select("goal_data")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Supabase load error:", error.message);
+    return;
+  }
+
+  if (data?.goal_data) {
+    Object.assign(state, normalizeState(data.goal_data));
+  }
+}
 function registerPwa() {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
