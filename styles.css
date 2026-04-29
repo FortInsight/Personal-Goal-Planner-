@@ -61,7 +61,8 @@ select {
 
 .planner-topbar__row,
 .planner-topbar__meta,
-.planner-brand {
+.planner-brand,
+.planner-status {
   display: flex;
   align-items: center;
 }
@@ -72,7 +73,8 @@ select {
 }
 
 .planner-topbar__meta,
-.planner-brand {
+.planner-brand,
+.planner-status {
   gap: 14px;
 }
 
@@ -81,8 +83,24 @@ select {
   min-width: 0;
 }
 
+.planner-status {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .planner-topbar__meta {
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.planner-home-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.planner-home-button {
+  text-decoration: none;
 }
 
 .planner-brand__copy h1 {
@@ -100,6 +118,15 @@ select {
 
 .planner-menu-heading {
   margin-bottom: -4px;
+}
+
+.planner-welcome {
+  min-width: 0;
+}
+
+.planner-welcome h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.8rem);
 }
 
 .view-nav--drawer {
@@ -124,6 +151,9 @@ select {
 .planner-logout {
   white-space: nowrap;
   min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .auth-shell {
@@ -1247,7 +1277,9 @@ select:focus {
 
 @media (max-width: 860px) {
   .planner-topbar__row {
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .planner-topbar__meta {
@@ -1257,6 +1289,10 @@ select:focus {
 
   .planner-brand {
     align-items: flex-start;
+  }
+
+  .planner-status {
+    justify-content: flex-start;
   }
 
   .layout {
@@ -1283,9 +1319,14 @@ select:focus {
 
   .planner-topbar__row,
   .planner-brand,
+  .planner-status,
   .planner-topbar__meta {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .planner-status {
+    gap: 10px;
   }
 
   .hero-date,

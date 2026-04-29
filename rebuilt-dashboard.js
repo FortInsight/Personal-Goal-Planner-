@@ -4,7 +4,13 @@ const SUPABASE_KEY = window.SUPABASE_KEY || "";
 
 const supabaseClient =
   SUPABASE_URL && SUPABASE_KEY && window.supabase?.createClient
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      })
     : null;
 
 function authEnabled() {
@@ -33,13 +39,41 @@ async function protectGoalPage() {
 async function logoutUser() {
   if (authEnabled()) {
     try {
-      await supabaseClient.auth.signOut();
+      await supabaseClient.auth.signOut({ scope: "local" });
     } catch (error) {
       console.error("Could not sign out.", error);
     }
   }
 
   window.location.href = "login.html";
+}
+
+async function syncProfileFromSession() {
+  if (!authEnabled()) {
+    return;
+  }
+
+  try {
+    const { data } = await supabaseClient.auth.getUser();
+    const user = data?.user;
+    if (!user) {
+      return;
+    }
+
+    const userName =
+      user.user_metadata?.user_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "";
+
+    if (userName && state.profile.profileName !== userName) {
+      state.profile.profileName = userName;
+      saveState();
+      render({ skipSave: true });
+    }
+  } catch (error) {
+    console.error("Could not sync profile from session.", error);
+  }
 }
 
 
@@ -120,8 +154,7 @@ const elements = {
   menuToggle: $("menuToggle"),
   menuPanel: $("menuPanel"),
   logoutButton: $("logoutButton"),
-  profileForm: $("profileForm"),
-  profileName: $("profileName"),
+  welcomeMessage: $("welcomeMessage"),
   signupButton: $("signupButton"),
   loginButton: $("loginButton"),
   todayLabel: $("todayLabel"),
@@ -208,10 +241,19 @@ if (window.location.pathname.includes("goal.html")) {
   protectGoalPage().catch((error) => {
     console.error("Could not verify session.", error);
   });
+
+  if (authEnabled()) {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        window.location.href = "login.html";
+      }
+    });
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   initialize();
+  syncProfileFromSession();
 });
 
 function initialize() {
@@ -796,12 +838,13 @@ function updateCustomRepeatVisibility() {
 }
 
 function renderProfile() {
-  if (elements.profileName) {
-    elements.profileName.value = state.profile.profileName || "";
-  }
-
   if (elements.todayLabel) {
     elements.todayLabel.textContent = formatLongDate(getToday());
+  }
+
+  if (elements.welcomeMessage) {
+    const name = state.profile.profileName?.trim();
+    elements.welcomeMessage.textContent = name ? `Welcome, ${name}` : "Welcome";
   }
 }
 
@@ -824,6 +867,15 @@ function renderViewState() {
   elements.viewPanels.forEach((panel) => {
     panel.hidden = panel.dataset.viewPanel !== state.ui.activeView;
   });
+}
+
+function scrollToActiveView() {
+  const activePanel = document.querySelector(`[data-view-panel="${state.ui.activeView}"]`);
+  if (!activePanel) {
+    return;
+  }
+
+  activePanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderGoalPicker() {
@@ -1275,13 +1327,6 @@ function updateCalendarVisibility() {
 }
 
 function wireEvents() {
-  elements.profileForm?.addEventListener("input", () => {
-    state.profile = {
-      profileName: elements.profileName?.value.trim() || "",
-    };
-    render();
-  });
-
   elements.signupButton?.addEventListener("click", signUpUser);
   elements.loginButton?.addEventListener("click", loginUser);
   elements.logoutButton?.addEventListener("click", logoutUser);
@@ -1317,7 +1362,7 @@ function wireEvents() {
       state.ui.activeView = button.dataset.viewTab;
       setMenuOpen(false);
       render({ keepTimestamp: true });
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToActiveView();
     });
   });
 

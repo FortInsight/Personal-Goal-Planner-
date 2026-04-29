@@ -91,7 +91,13 @@
     const SUPABASE_KEY = window.SUPABASE_KEY || "";
     const supabaseClient =
       SUPABASE_URL && SUPABASE_KEY && window.supabase?.createClient
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true
+            }
+          })
         : null;
 
     function authEnabled() {
@@ -268,6 +274,17 @@
         setAuthMessage("Paste your Supabase URL and key into supabase-config.js first.");
         return;
       }
+
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setRecoveryMode(true);
+          return;
+        }
+
+        if ((event === "INITIAL_SESSION" || event === "SIGNED_IN") && session && !inRecoveryMode()) {
+          openPlannerPage();
+        }
+      });
 
       try {
         const { data } = await supabaseClient.auth.getSession();

@@ -3,304 +3,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FortInsight | Data, AI, Analytics & Insights</title>
+  <title>FortInsight | Home</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/fortinsight-mark.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/fortinsight-mark.svg">
   <meta name="theme-color" content="#073763">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="FortInsight">
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-      background: #073763;
-      color: #ffffff;
-      line-height: 1.6;
-    }
-
-    .hero {
-      min-height: 100vh;
-      background: #073763;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 50px 20px;
-    }
-
-    .hero-content {
-      max-width: 1050px;
-      margin: auto;
-    }
-
-    .logo {
-      max-width: 360px;
-      width: 100%;
-      height: auto;
-      margin-bottom: 35px;
-    }
-
-    h1 {
-      font-size: 46px;
-      margin-bottom: 20px;
-      font-weight: 800;
-    }
-
-    .tagline {
-      font-size: 22px;
-      color: #e1f0ff;
-      max-width: 900px;
-      margin: 0 auto 35px;
-    }
-
-    .hero-buttons a {
-      display: inline-block;
-      margin: 10px;
-      padding: 14px 30px;
-      border-radius: 30px;
-      text-decoration: none;
-      font-weight: 700;
-    }
-
-    .primary-btn {
-      background: #ff9f2a;
-      color: #061f3b;
-    }
-
-    .secondary-btn {
-      border: 1px solid #ffffff;
-      color: #ffffff;
-    }
-
-    section {
-      padding: 75px 20px;
-      max-width: 1150px;
-      margin: auto;
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 36px;
-      margin-bottom: 18px;
-    }
-
-    .section-text {
-      text-align: center;
-      max-width: 850px;
-      margin: 0 auto 45px;
-      color: #d8ecff;
-      font-size: 18px;
-    }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 24px;
-    }
-
-    .card {
-      background: #17466f;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 18px;
-      padding: 30px 24px;
-      text-align: center;
-      min-height: 180px;
-    }
-
-    .card h3 {
-      color: #ffb45c;
-      margin-bottom: 14px;
-      font-size: 23px;
-    }
-
-    .card p {
-      color: #ffffff;
-      font-size: 16px;
-    }
-
-    .products-section {
-      background: #062f56;
-      max-width: 100%;
-    }
-
-    .products-inner {
-      max-width: 1150px;
-      margin: auto;
-    }
-
-    .product-card {
-      background: #17466f;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 18px;
-      padding: 30px;
-      text-align: center;
-    }
-
-    .product-card h3 {
-      color: #ffb45c;
-      font-size: 24px;
-      margin-bottom: 14px;
-    }
-
-    .product-card p {
-      color: #ffffff;
-      margin-bottom: 20px;
-    }
-
-    .product-link {
-      display: inline-block;
-      padding: 12px 24px;
-      background: #ff9f2a;
-      color: #061f3b;
-      border-radius: 25px;
-      text-decoration: none;
-      font-weight: 700;
-    }
-
-    footer {
-      text-align: center;
-      padding: 30px;
-      background: #031f3b;
-      color: #aac8e8;
-    }
-
-    @media (max-width: 900px) {
-      .cards {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      h1 {
-        font-size: 34px;
-      }
-
-      .tagline {
-        font-size: 18px;
-      }
-    }
-
-    @media (max-width: 560px) {
-      .cards {
-        grid-template-columns: 1fr;
-      }
-
-      .logo {
-        max-width: 260px;
-      }
-
-      h1 {
-        font-size: 30px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="fortinsight-site.css">
 </head>
-
 <body>
-
-  <header class="hero">
-    <div class="hero-content">
-      <img src="assets/fortinsight-logo.png" alt="FortInsight Logo" class="logo" />
-
-      <h1>Data, AI, Analytics & Insight Solutions</h1>
-
-      <p class="tagline">
-        FortInsight builds simple digital products that help people track progress,
-        make better decisions, and turn information into useful insight.
-      </p>
-
-      <div class="hero-buttons">
-        <a href="#products" class="primary-btn">Explore Products</a>
-        <a href="#about" class="secondary-btn">About FortInsight</a>
+  <div class="site-shell">
+    <nav class="site-nav" aria-label="FortInsight">
+      <a class="site-nav__brand" href="index.html">
+        <img src="assets/fortinsight-logo.png" alt="FortInsight Logo">
+      </a>
+      <div class="site-nav__links">
+        <a class="is-active" href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="focus.html">Focus</a>
+        <a href="products.html">Products</a>
       </div>
-    </div>
-  </header>
+    </nav>
 
-  <section id="about">
-    <h2 class="section-title">About Us</h2>
-    <p class="section-text">
-<p class="section-text">
-  FortInsight builds practical, user-friendly digital products powered by data,
-  AI, analytics, and insight. Our solutions help individuals and businesses make
-  better decisions, supporting progress across areas such as learning, health,
-  and financial well-being.
-</p>
-    </p>
-  </section>
-
-  <section>
-    <h2 class="section-title">Our Focus</h2>
-    <p class="section-text">
-      We focus on solutions that combine technology, clarity, and practical value.
-    </p>
-
-    <div class="cards">
-      <div class="card">
-        <h3>Data</h3>
-        <p>Organizing and transforming data into useful information.</p>
-      </div>
-
-      <div class="card">
-        <h3>AI</h3>
-        <p>Using intelligent tools to support smarter workflows and decisions.</p>
-      </div>
-
-      <div class="card">
-        <h3>Analytics</h3>
-        <p>Turning numbers into patterns, trends, and measurable progress.</p>
-      </div>
-
-      <div class="card">
-        <h3>Insights</h3>
-        <p>Helping users clearly understand what their data is saying.</p>
-      </div>
-    </div>
-  </section>
-
-  <section id="products" class="products-section">
-    <div class="products-inner">
-      <h2 class="section-title">Our Products</h2>
-      <p class="section-text">
-        Explore our growing suite of simple, practical products designed to help
-        users stay consistent, learn better, and make smarter decisions.
-      </p>
-
-      <div class="cards">
-        <div class="product-card">
-          <h3>Goal Planner</h3>
-          <p>Plan goals, track progress, and manage repeated habits.</p>
-          <a href="login.html" class="product-link">Open Goal Planner</a>
-        </div>
-
-        <div class="product-card">
-          <h3>Math Quiz</h3>
-          <p>Practice math questions and track learning progress.</p>
-          <a href="#" class="product-link">Coming Soon</a>
-        </div>
-
-        <div class="product-card">
-          <h3>English Quiz</h3>
-          <p>Improve English skills with simple practice questions.</p>
-          <a href="#" class="product-link">Coming Soon</a>
-        </div>
-
-        <div class="product-card">
-          <h3>More Products</h3>
-          <p>Additional data, AI, and analytics solutions are in development.</p>
-          <a href="#" class="product-link">Coming Soon</a>
+    <header class="hero">
+      <div class="hero-content">
+        <h1>Data, AI, Analytics & Insight Solutions</h1>
+        <p class="tagline">
+          FortInsight builds simple digital products that help people track progress,
+          make better decisions, and turn information into useful insight.
+        </p>
+        <div class="hero-buttons">
+          <a href="products.html" class="primary-btn">Explore Products</a>
+          <a href="about.html" class="secondary-btn">About FortInsight</a>
         </div>
       </div>
-    </div>
-  </section>
+    </header>
 
-  <footer>
-    <p>© 2026 FortInsight. Data • AI • Analytics • Insights</p>
-  </footer>
+    <section class="page-section">
+      <div class="page-content">
+        <h2 class="section-title">Welcome to FortInsight</h2>
+        <p class="section-text">
+          We design practical digital tools that turn information into action. Explore our story,
+          our focus areas, and the growing product suite we are building for everyday progress.
+        </p>
+        <div class="cards">
+          <div class="card">
+            <h3>About</h3>
+            <p>Learn what FortInsight stands for and the kind of impact we want our tools to create.</p>
+            <p><a class="button-link button-link--secondary" href="about.html">Open About</a></p>
+          </div>
+          <div class="card">
+            <h3>Focus</h3>
+            <p>See how data, AI, analytics, and insights shape the solutions we are building.</p>
+            <p><a class="button-link button-link--secondary" href="focus.html">Open Focus</a></p>
+          </div>
+          <div class="card">
+            <h3>Products</h3>
+            <p>Browse our live planner and the next set of simple learning and productivity tools.</p>
+            <p><a class="button-link button-link--secondary" href="products.html">Open Products</a></p>
+          </div>
+          <div class="card">
+            <h3>Goal Planner</h3>
+            <p>Jump straight into the planner to plan, act, measure, and gain insights.</p>
+            <p><a class="button-link" href="login.html">Open Planner</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <p>&copy; 2026 FortInsight. Data • AI • Analytics • Insights</p>
+      </div>
+    </footer>
+  </div>
 </body>
 </html>

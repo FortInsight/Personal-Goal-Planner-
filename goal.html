@@ -22,26 +22,28 @@
     <header class="planner-topbar card">
       <div class="planner-topbar__row">
         <div class="planner-brand">
-          <img src="assets/fortinsight-logo.png" alt="FortInsight" class="app-logo">
+          <a href="index.html" class="planner-home-link" aria-label="Go to FortInsight home">
+            <img src="assets/fortinsight-logo.png" alt="FortInsight" class="app-logo">
+          </a>
           <div class="planner-brand__copy">
             <p class="eyebrow">Personal goal planner</p>
             <h1>Planner Workspace</h1>
           </div>
         </div>
-        <div class="planner-topbar__meta">
+        <div class="planner-status">
+          <div class="planner-welcome">
+            <p class="section-label">Welcome</p>
+            <h2 id="welcomeMessage">Welcome</h2>
+          </div>
           <div class="hero-date" id="todayLabel"></div>
+        </div>
+        <div class="planner-topbar__meta">
+          <a href="index.html" class="ghost-btn planner-home-button">Home</a>
           <button id="logoutButton" type="button" class="ghost-btn planner-logout">Sign out</button>
         </div>
       </div>
 
       <div id="menuPanel" class="menu-panel">
-        <form id="profileForm" class="profile-form planner-profile-form">
-          <label>
-            Profile name
-            <input id="profileName" name="profileName" type="text" placeholder="Enter your name">
-          </label>
-        </form>
-
         <div class="planner-menu-heading">
           <p class="section-label">Planner Menu</p>
         </div>
