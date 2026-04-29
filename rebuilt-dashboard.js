@@ -1,22 +1,50 @@
-const SUPABASE_URL = "https://atdrcseaofseybsorhhr.supabase.co";
-const SUPABASE_KEY = "sb_publishable_buo26QzG4HoNSL2Q03etaw_B4H4DvO8";
+const SUPABASE_URL = window.SUPABASE_URL || "";
+const SUPABASE_KEY = window.SUPABASE_KEY || "";
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+
+const supabaseClient =
+  SUPABASE_URL && SUPABASE_KEY && window.supabase?.createClient
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+    : null;
+
+function authEnabled() {
+  return Boolean(supabaseClient);
+}
+
+function openPlannerPage() {
+  window.location.href = "goal.html";
+}
 
 async function protectGoalPage() {
-  const { data } = await supabaseClient.auth.getSession();
+  if (!authEnabled()) {
+    window.location.href = "login.html";
+    return null;
+  }
 
+  const { data } = await supabaseClient.auth.getSession();
   if (!data.session) {
     window.location.href = "login.html";
+    return null;
   }
-}
-const state = loadState();
-protectGoalPage();
 
-initialize();
+  return data.session;
+}
+
+async function logoutUser() {
+  if (authEnabled()) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch (error) {
+      console.error("Could not sign out.", error);
+    }
+  }
+
+  window.location.href = "login.html";
+}
+
+
+const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v3";
+
 
 
 async function signUpUser() {
@@ -24,7 +52,13 @@ async function signUpUser() {
   const password = document.getElementById("authPassword")?.value;
   const message = document.getElementById("authMessage");
 
+  if (!message) return;
   message.textContent = "";
+
+  if (!authEnabled()) {
+    message.textContent = "Paste your Supabase URL and key into supabase-config.js first.";
+    return;
+  }
 
   if (!email || !password) {
     message.textContent = "Please enter email and password.";
@@ -49,7 +83,13 @@ async function loginUser() {
   const password = document.getElementById("authPassword")?.value;
   const message = document.getElementById("authMessage");
 
+  if (!message) return;
   message.textContent = "";
+
+  if (!authEnabled()) {
+    message.textContent = "Paste your Supabase URL and key into supabase-config.js first.";
+    return;
+  }
 
   if (!email || !password) {
     message.textContent = "Please enter email and password.";
@@ -70,31 +110,20 @@ async function loginUser() {
   window.location.href = "goal.html";
 }
 
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email: email,
-    options: {
-      emailRedirectTo: "https://fortinsight.com/goal.html"
-    }
-  });
 
-  if (error) {
-    message.textContent = "Error: " + error.message;
-  } else {
-    message.textContent = "Login link sent. Check your email.";
-  }
-
-  button.disabled = false;
-  button.textContent = "Send login link";
-}
-const STORAGE_KEY = "personal-goals-dashboard-rebuilt-v3";
 
 const $ = (id) => document.getElementById(id);
 
 const elements = {
   viewTabs: Array.from(document.querySelectorAll("[data-view-tab]")),
   viewPanels: Array.from(document.querySelectorAll("[data-view-panel]")),
+  menuToggle: $("menuToggle"),
+  menuPanel: $("menuPanel"),
+  logoutButton: $("logoutButton"),
   profileForm: $("profileForm"),
   profileName: $("profileName"),
+  signupButton: $("signupButton"),
+  loginButton: $("loginButton"),
   todayLabel: $("todayLabel"),
   homeActionMode: $("homeActionMode"),
   goalForm: $("goalForm"),
@@ -149,7 +178,10 @@ const elements = {
   chartCaption: $("chartCaption"),
   trendChart: $("trendChart"),
 };
+// const state = loadState();
+// protectGoalPage();
 
+// initialize();
 const defaultProfile = {
   profileName: "",
 };
@@ -170,10 +202,17 @@ function getFreshState() {
     },
   };
 }
-
 const state = loadState();
 
-initialize();
+if (window.location.pathname.includes("goal.html")) {
+  protectGoalPage().catch((error) => {
+    console.error("Could not verify session.", error);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initialize();
+});
 
 function initialize() {
   state.ui.activeView = "home";
@@ -181,6 +220,7 @@ function initialize() {
   elements.reportRange.value = state.ui.reportRange || "day";
   updateCustomRepeatVisibility();
   updateCalendarVisibility();
+  setMenuOpen(false);
   registerPwa();
   wireEvents();
   render({ skipSave: true });
@@ -756,8 +796,22 @@ function updateCustomRepeatVisibility() {
 }
 
 function renderProfile() {
-  elements.profileName.value = state.profile.profileName || "";
-  elements.todayLabel.textContent = formatLongDate(getToday());
+  if (elements.profileName) {
+    elements.profileName.value = state.profile.profileName || "";
+  }
+
+  if (elements.todayLabel) {
+    elements.todayLabel.textContent = formatLongDate(getToday());
+  }
+}
+
+function setMenuOpen(isOpen) {
+  if (!elements.menuPanel || !elements.menuToggle) {
+    return;
+  }
+
+  elements.menuPanel.hidden = !isOpen;
+  elements.menuToggle.setAttribute("aria-expanded", String(isOpen));
 }
 
 function renderViewState() {
@@ -1221,16 +1275,21 @@ function updateCalendarVisibility() {
 }
 
 function wireEvents() {
-  elements.profileForm.addEventListener("input", () => {
+  elements.profileForm?.addEventListener("input", () => {
     state.profile = {
-      profileName: elements.profileName.value.trim(),
+      profileName: elements.profileName?.value.trim() || "",
     };
     render();
   });
-  document.getElementById("loginButton")?.addEventListener("click", () => {
-  const email = document.getElementById("email")?.value || "";
-  login(email);
-});
+
+  elements.signupButton?.addEventListener("click", signUpUser);
+  elements.loginButton?.addEventListener("click", loginUser);
+  elements.logoutButton?.addEventListener("click", logoutUser);
+  elements.menuToggle?.addEventListener("click", () => {
+    const isOpen = elements.menuToggle.getAttribute("aria-expanded") === "true";
+    setMenuOpen(!isOpen);
+  });
+
 
   elements.homeActionMode.addEventListener("change", () => {
     if (elements.homeActionMode.value === "update") {
@@ -1256,6 +1315,7 @@ function wireEvents() {
   elements.viewTabs.forEach((button) => {
     button.addEventListener("click", () => {
       state.ui.activeView = button.dataset.viewTab;
+      setMenuOpen(false);
       render({ keepTimestamp: true });
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -1499,23 +1559,3 @@ function recordGoalHistoryForDate(goal, date) {
 
   goal.history = goal.history.slice(-120);
 }
-document.querySelectorAll("[data-view-tab]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const view = btn.dataset.viewTab;
-
-    document.querySelectorAll("[data-view-panel]").forEach((panel) => {
-      panel.style.display = panel.dataset.viewPanel === view ? "block" : "none";
-    });
-
-    document.querySelectorAll("[data-view-tab]").forEach((b) => {
-      b.classList.remove("is-active");
-    });
-
-    btn.classList.add("is-active");
-  });
-});
-document.getElementById("signupButton")
-  ?.addEventListener("click", signUpUser);
-
-document.getElementById("loginButton")
-  ?.addEventListener("click", loginUser);

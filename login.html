@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Personal Daily Goals Dashboard</title>
+  <meta name="theme-color" content="#0a224a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=2026-04-28-2">
+</head>
+<body class="auth-body">
+  <div class="auth-shell">
+    <section class="hero auth-card">
+      <div class="app-header">
+        <img src="assets/fortinsight-logo.png" alt="FortInsight" class="app-logo">
+      </div>
+
+      <div class="auth-copy">
+        <p class="eyebrow">Personal goal planner</p>
+        <h1>Sign in to open your planner.</h1>
+        <p class="hero-text">
+          Plan, act, measure, and gain insights. Sign up or log in here to continue.
+        </p>
+      </div>
+
+      <form id="authForm" class="profile-form auth-form">
+        <div class="two-up auth-input-grid">
+          <label>
+            User name
+            <input type="text" id="authName" placeholder="Enter your user name" autocomplete="name">
+          </label>
+          <label>
+            Email
+            <input type="email" id="authEmail" placeholder="Enter your email" autocomplete="email">
+          </label>
+          <label>
+            Password
+            <input type="password" id="authPassword" placeholder="Enter password" autocomplete="current-password">
+          </label>
+        </div>
+
+        <div class="auth-actions">
+          <button id="signupButton" type="button" class="primary-btn">Sign up</button>
+          <button id="loginButton" type="button" class="primary-btn">Login</button>
+          <button id="forgotPasswordButton" type="button" class="ghost-btn">Forgot password?</button>
+          <a href="index.html" class="ghost-btn auth-back-link">Back to home</a>
+        </div>
+
+        <p id="authMessage" class="auth-message"></p>
+      </form>
+
+      <form id="updatePasswordForm" class="profile-form auth-form update-password-form" hidden>
+        <div class="auth-panel-copy">
+          <p class="section-label">Password recovery</p>
+          <h2>Update your password</h2>
+          <p class="hero-text">Enter a new password below to finish recovering your account.</p>
+        </div>
+
+        <div class="two-up auth-input-grid">
+          <label>
+            New password
+            <input type="password" id="newPassword" placeholder="Enter new password" autocomplete="new-password">
+          </label>
+          <label>
+            Confirm password
+            <input type="password" id="confirmPassword" placeholder="Confirm new password" autocomplete="new-password">
+          </label>
+        </div>
+
+        <div class="auth-actions">
+          <button id="updatePasswordButton" type="submit" class="primary-btn">Update password</button>
+          <button id="backToLoginButton" type="button" class="ghost-btn">Back to login</button>
+        </div>
+
+        <p id="updatePasswordMessage" class="auth-message"></p>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const SUPABASE_URL = window.SUPABASE_URL || "";
+    const SUPABASE_KEY = window.SUPABASE_KEY || "";
+    const supabaseClient =
+      SUPABASE_URL && SUPABASE_KEY && window.supabase?.createClient
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+        : null;
+
+    function authEnabled() {
+      return Boolean(supabaseClient);
+    }
+
+    function openPlannerPage() {
+      window.location.href = "goal.html";
+    }
+
+    function getPlannerRedirectUrl() {
+      return new URL("goal.html", window.location.href).href;
+    }
+
+    function getLoginRedirectUrl() {
+      return new URL("login.html", window.location.href).href;
+    }
+
+    function setAuthMessage(text) {
+      const message = document.getElementById("authMessage");
+      if (message) {
+        message.textContent = text;
+      }
+    }
+
+    function setUpdatePasswordMessage(text) {
+      const message = document.getElementById("updatePasswordMessage");
+      if (message) {
+        message.textContent = text;
+      }
+    }
+
+    function inRecoveryMode() {
+      return window.location.hash.includes("type=recovery");
+    }
+
+    function setRecoveryMode(enabled) {
+      const authForm = document.getElementById("authForm");
+      const updatePasswordForm = document.getElementById("updatePasswordForm");
+
+      if (authForm) {
+        authForm.hidden = enabled;
+      }
+      if (updatePasswordForm) {
+        updatePasswordForm.hidden = !enabled;
+      }
+    }
+
+    async function signUpUser() {
+      const name = document.getElementById("authName")?.value.trim();
+      const email = document.getElementById("authEmail")?.value.trim();
+      const password = document.getElementById("authPassword")?.value;
+
+      setAuthMessage("");
+
+      if (!authEnabled()) {
+        setAuthMessage("Paste your Supabase URL and key into supabase-config.js first.");
+        return;
+      }
+
+      if (!email || !password) {
+        setAuthMessage("Please enter email and password.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            user_name: name || ""
+          },
+          emailRedirectTo: getPlannerRedirectUrl()
+        }
+      });
+      setAuthMessage(error ? `Sign up error: ${error.message}` : "Account created. You can now log in.");
+    }
+
+    async function loginUser() {
+      const email = document.getElementById("authEmail")?.value.trim();
+      const password = document.getElementById("authPassword")?.value;
+
+      setAuthMessage("");
+
+      if (!authEnabled()) {
+        setAuthMessage("Paste your Supabase URL and key into supabase-config.js first.");
+        return;
+      }
+
+      if (!email || !password) {
+        setAuthMessage("Please enter email and password.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        setAuthMessage(`Login error: ${error.message}`);
+        return;
+      }
+
+      setAuthMessage("Login successful. Opening planner...");
+      openPlannerPage();
+    }
+
+    async function sendPasswordReset() {
+      const email = document.getElementById("authEmail")?.value.trim();
+
+      setAuthMessage("");
+
+      if (!authEnabled()) {
+        setAuthMessage("Paste your Supabase URL and key into supabase-config.js first.");
+        return;
+      }
+
+      if (!email) {
+        setAuthMessage("Enter your email first, then use Forgot password.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: getLoginRedirectUrl()
+      });
+
+      setAuthMessage(error ? `Reset error: ${error.message}` : "Password reset email sent. Open the email and return here to update your password.");
+    }
+
+    async function updatePassword(event) {
+      event.preventDefault();
+
+      const newPassword = document.getElementById("newPassword")?.value || "";
+      const confirmPassword = document.getElementById("confirmPassword")?.value || "";
+
+      setUpdatePasswordMessage("");
+
+      if (!authEnabled()) {
+        setUpdatePasswordMessage("Paste your Supabase URL and key into supabase-config.js first.");
+        return;
+      }
+
+      if (!newPassword || !confirmPassword) {
+        setUpdatePasswordMessage("Enter and confirm your new password.");
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        setUpdatePasswordMessage("The passwords do not match.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+      if (error) {
+        setUpdatePasswordMessage(`Update error: ${error.message}`);
+        return;
+      }
+
+      setUpdatePasswordMessage("Password updated successfully. Opening planner...");
+      window.location.hash = "";
+      openPlannerPage();
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      document.getElementById("signupButton")?.addEventListener("click", signUpUser);
+      document.getElementById("loginButton")?.addEventListener("click", loginUser);
+      document.getElementById("forgotPasswordButton")?.addEventListener("click", sendPasswordReset);
+      document.getElementById("updatePasswordForm")?.addEventListener("submit", updatePassword);
+      document.getElementById("backToLoginButton")?.addEventListener("click", () => {
+        window.location.hash = "";
+        setRecoveryMode(false);
+      });
+
+      setRecoveryMode(inRecoveryMode());
+
+      if (!authEnabled()) {
+        setAuthMessage("Paste your Supabase URL and key into supabase-config.js first.");
+        return;
+      }
+
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        if (inRecoveryMode()) {
+          setRecoveryMode(true);
+          return;
+        }
+
+        if (data.session) {
+          openPlannerPage();
+        }
+      } catch (error) {
+        console.error("Could not verify session.", error);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,15 +1,15 @@
 {
-  "name": "Personal Daily Goals Dashboard",
-  "short_name": "Goal Planner",
-  "description": "Track daily goals, progress, and performance across your devices.",
-  "start_url": "./",
+  "name": "FortInsight",
+  "short_name": "FortInsight",
+  "description": "FortInsight products for data, AI, analytics, and practical insight tools.",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#d8efff",
-  "theme_color": "#0a224a",
+  "background_color": "#073763",
+  "theme_color": "#073763",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "assets/icon.svg",
+      "src": "assets/fortinsight-mark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

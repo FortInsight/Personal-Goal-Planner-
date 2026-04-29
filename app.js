@@ -17,6 +17,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 async function login(email) {
   const message = document.getElementById("authMessage");
   const button = document.getElementById("loginButton");
+  const plannerRedirectUrl = new URL("goal.html", window.location.href).href;
 
   message.textContent = "";
   button.disabled = true;
@@ -32,7 +33,7 @@ async function login(email) {
   const { error } = await supabase.auth.signInWithOtp({
     email: email,
     options: {
-      emailRedirectTo: "https://fortinsight.com/goal.html"
+      emailRedirectTo: plannerRedirectUrl
     }
   });
 
