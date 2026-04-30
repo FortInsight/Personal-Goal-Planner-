@@ -217,11 +217,11 @@
           </div>
         </div>
         <div class="stats-grid">
-          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection">
+          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection" data-range="all" data-status="not-started">
             <span>Planned goals</span>
             <strong id="totalGoals">0</strong>
           </button>
-          <button class="stat-box stat-button stat-button--warning" type="button" data-target="allGoalsSection" data-range="today">
+          <button class="stat-box stat-button stat-button--warning" type="button" data-target="allGoalsSection" data-range="today" data-status="not-completed">
             <span>Due today</span>
             <strong id="todayGoals">0</strong>
           </button>
@@ -266,11 +266,12 @@
             <label class="period-picker">
               Status
               <select id="goalListStatus">
-                <option value="all" selected>All</option>
-                <option value="due-not-completed">Due and not completed</option>
-                <option value="not-started">Not started</option>
+                <option value="all">All</option>
+                <option value="not-completed">Active (not completed)</option>
+                <option value="not-started" selected>Not started</option>
                 <option value="in-progress">In progress</option>
                 <option value="completed">Completed</option>
+                <option value="due-not-completed">Due and not completed</option>
               </select>
             </label>
             <button id="toggleGoalTableButton" class="ghost-btn compact-btn" type="button" aria-expanded="true" aria-controls="goalTableWrap">

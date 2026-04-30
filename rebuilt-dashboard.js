@@ -190,6 +190,8 @@ const elements = {
   updateGoalStatus: $("updateGoalStatus"),
   updateGoalProgress: $("updateGoalProgress"),
   updateGoalSubmitButton: $("updateGoalSubmitButton"),
+  updateGoalDeleteButton: $("updateGoalDeleteButton"),
+  updateStatusButtons: $("updateStatusButtons"),
   subGoalSection: $("subGoalSection"),
   subGoalForm: $("subGoalForm"),
   subGoalTitle: $("subGoalTitle"),
@@ -232,6 +234,7 @@ const elements = {
   accountPasswordConfirm: $("accountPasswordConfirm"),
   accountSubmitButton: $("accountSubmitButton"),
   accountMessage: $("accountMessage"),
+  plannerStatusMessage: $("plannerStatusMessage"),
 };
 // const state = loadState();
 // protectGoalPage();
@@ -281,6 +284,11 @@ if (window.location.pathname.includes("goal.html")) {
 // });
 
 document.addEventListener("DOMContentLoaded", async () => {
+  window.goalPlannerSetStatus = handleGoalListStatusAction;
+  window.goalPlannerApplySelectedStatus = updateSelectedGoalFromForm;
+  window.goalPlannerDeleteSelectedGoal = deleteSelectedGoalFromForm;
+  window.goalPlannerSetSelectedStatus = setSelectedGoalStatusAction;
+
   if (window.location.pathname.includes("goal.html")) {
     await protectGoalPage();
   }
@@ -294,8 +302,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 function initialize() {
   state.ui.activeView = "home";
   elements.goalListCalendarDate.value = toIsoDate(getToday());
-  elements.goalListRange.value = "today";
-  elements.goalListStatus.value = "all";
+elements.goalListRange.value = "today";
+  elements.goalListStatus.value = "not-started";
   elements.reportRange.value = state.ui.reportRange || "day";
   state.ui.reportRange = elements.reportRange.value;
   updateCustomRepeatVisibility();
@@ -415,6 +423,10 @@ async function saveStateToSupabase() {
   if (!authEnabled()) {
     return;
   }
+  if (!Array.isArray(state.goals)) {
+  console.error("Not saving: state.goals is missing.");
+  return;
+}
 
   const { data: { session } } = await supabaseClient.auth.getSession();
   const user = session?.user;
@@ -439,7 +451,7 @@ async function saveStateToSupabase() {
     const { error } = await supabaseClient
       .from("goals")
       .update({
-        goal_data: state,
+        goal_data: JSON.parse(JSON.stringify(state)),
         updated_at: new Date().toISOString()
       })
       .eq("id", primaryRow.id);
@@ -464,7 +476,7 @@ async function saveStateToSupabase() {
     .from("goals")
     .insert({
       user_id: user.id,
-      goal_data: state,
+      goal_data: JSON.parse(JSON.stringify(state)),
       updated_at: new Date().toISOString()
     });
 
@@ -496,7 +508,11 @@ async function loadStateFromSupabase() {
   const rows = Array.isArray(data) ? data : [];
   const primaryRow = rows[0];
 
-  if (primaryRow?.goal_data) {
+  if (
+  primaryRow?.goal_data &&
+  Array.isArray(primaryRow.goal_data.goals) &&
+  primaryRow.goal_data.goals.length > 0
+) {
     Object.assign(state, normalizeState(primaryRow.goal_data));
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -519,17 +535,45 @@ async function loadStateFromSupabase() {
   }
 
   if (hasMeaningfulPlannerData(state)) {
-    await saveStateToSupabase();
+    // await saveStateToSupabase();
   }
 }
 function registerPwa() {
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch((error) => {
-        console.error("Service worker registration failed.", error);
-      });
-    });
+  return;
+}
+
+function setPlannerStatusMessage(message, tone = "") {
+  if (elements.plannerStatusMessage) {
+    elements.plannerStatusMessage.textContent = message;
+    elements.plannerStatusMessage.classList.remove("is-success", "is-error");
+    if (tone === "success") elements.plannerStatusMessage.classList.add("is-success");
+    if (tone === "error") elements.plannerStatusMessage.classList.add("is-error");
+    return;
   }
+
+  // Fallback: floating toast notification
+  if (!message || tone === "") return; // skip non-important messages
+
+  let toast = document.getElementById("__plannerToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "__plannerToast";
+    toast.style.cssText = [
+      "position:fixed", "bottom:24px", "left:50%", "transform:translateX(-50%)",
+      "padding:10px 20px", "border-radius:20px", "font-size:0.9rem", "font-weight:600",
+      "z-index:9999", "pointer-events:none", "transition:opacity 0.4s",
+      "box-shadow:0 4px 16px rgba(0,0,0,0.3)"
+    ].join(";");
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.opacity = "1";
+  toast.style.background = tone === "success" ? "#1a5c3a" : tone === "error" ? "#5c1a1a" : "#0a224a";
+  toast.style.color = "#fff";
+
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => { toast.style.opacity = "0"; }, 2500);
 }
 
 function normalizeGoal(goal) {
@@ -546,6 +590,10 @@ function normalizeGoal(goal) {
     repeatUnit: goal.repeatUnit || "day",
     createdAt: goal.createdAt || new Date().toISOString(),
     updatedAt: goal.updatedAt || new Date().toISOString(),
+    lastStatus: normalizeStatus(goal.lastStatus || goal.status),
+    lastStatusProgress: clampNumber(goal.lastStatusProgress ?? goal.progress, 0, 100, 0),
+    lastStatusChangedAt: goal.lastStatusChangedAt || goal.updatedAt || goal.createdAt || new Date().toISOString(),
+    lastCompletedAt: goal.lastCompletedAt || "",
     history: normalizeHistory(goal),
     subGoals: Array.isArray(goal.subGoals)
       ? goal.subGoals.map((subGoal) => ({
@@ -851,6 +899,85 @@ function getSuccess(goal, date = getToday()) {
   };
 }
 
+function getGoalStateForDate(goal, date) {
+  return getGoalStateForPeriod(goal, date, date);
+}
+
+function getTodayOccurrenceGoals() {
+  const today = getToday();
+  return state.goals
+    .filter((goal) => goalOccursWithin(goal, today, today) || hasHistoryActivityInPeriod(goal, today, today))
+    .map((goal) => ({
+      goal,
+      state: { status: normalizeStatus(goal.status), progress: clampNumber(goal.progress, 0, 100, 0) },
+    }));
+}
+
+function percentFromGoalStates(goalStates) {
+  if (!goalStates.length) return 0;
+  const completed = goalStates.filter((entry) => entry.state.status === "completed").length;
+  return Math.round((completed / goalStates.length) * 100);
+}
+
+function advanceRepeatingGoal(goal, baseDate) {
+  if (!goal.repeat || goal.repeat === "none") {
+    return;
+  }
+
+  const currentDueDate = dateFromIso(goal.dueDate) || baseDate || getToday();
+
+  if (goal.repeat === "daily") {
+    goal.dueDate = toIsoDate(addDays(currentDueDate, 1));
+  } else if (goal.repeat === "weekly") {
+    goal.dueDate = toIsoDate(addDays(currentDueDate, 7));
+  } else if (goal.repeat === "monthly") {
+    goal.dueDate = toIsoDate(addMonths(currentDueDate, 1));
+  } else if (goal.repeat === "yearly") {
+    goal.dueDate = toIsoDate(addYears(currentDueDate, 1));
+  } else if (goal.repeat === "custom") {
+    const interval = Math.max(1, goal.repeatInterval || 1);
+
+    if (goal.repeatUnit === "day") {
+      goal.dueDate = toIsoDate(addDays(currentDueDate, interval));
+    } else if (goal.repeatUnit === "week") {
+      goal.dueDate = toIsoDate(addDays(currentDueDate, interval * 7));
+    } else if (goal.repeatUnit === "month") {
+      goal.dueDate = toIsoDate(addMonths(currentDueDate, interval));
+    } else if (goal.repeatUnit === "year") {
+      goal.dueDate = toIsoDate(addYears(currentDueDate, interval));
+    }
+  }
+}
+
+function applyGoalStatusChange(goal, status, progress, occurrenceDate) {
+  goal.status = normalizeStatus(status);
+  goal.progress = clampNumber(progress, 0, 100, 0);
+
+  if (goal.status === "completed") {
+    goal.progress = 100;
+  }
+
+  if (goal.status === "not-started") {
+    goal.progress = 0;
+  }
+
+  goal.lastStatus = goal.status;
+  goal.lastStatusProgress = goal.progress;
+  goal.lastStatusChangedAt = occurrenceDate.toISOString();
+  if (goal.status === "completed") {
+    goal.lastCompletedAt = occurrenceDate.toISOString();
+  }
+
+  goal.updatedAt = new Date().toISOString();
+  recordGoalHistoryForDate(goal, occurrenceDate);
+
+  if (goal.status === "completed" && goal.repeat && goal.repeat !== "none") {
+    advanceRepeatingGoal(goal, occurrenceDate);
+    goal.status = "not-started";
+    goal.progress = 0;
+  }
+}
+
 function recordGoalHistory(goal) {
   if (!goal) return;
   if (!Array.isArray(goal.history)) goal.history = [];
@@ -878,16 +1005,95 @@ function getHistoryEntriesForPeriod(goal, start, end) {
     .sort((left, right) => new Date(left.date) - new Date(right.date));
 }
 
+function getLatestHistoryDateInPeriod(goal, start, end) {
+  const entries = getHistoryEntriesForPeriod(goal, start, end);
+  if (!entries.length) {
+    return null;
+  }
+
+  const latestEntryDate = new Date(entries[entries.length - 1].date);
+  return new Date(latestEntryDate.getFullYear(), latestEntryDate.getMonth(), latestEntryDate.getDate());
+}
+
+function getUpdatedAtDate(goal) {
+  if (!goal?.updatedAt) {
+    return null;
+  }
+
+  const updatedDate = new Date(goal.updatedAt);
+  if (Number.isNaN(updatedDate.getTime())) {
+    return null;
+  }
+
+  return new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
+}
+
+function getTrackedStatusDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const trackedDate = new Date(value);
+  if (Number.isNaN(trackedDate.getTime())) {
+    return null;
+  }
+
+  return new Date(trackedDate.getFullYear(), trackedDate.getMonth(), trackedDate.getDate());
+}
+
+function hasUpdatedStateInPeriod(goal, start, end) {
+  const updatedAtDate = getUpdatedAtDate(goal);
+  if (!updatedAtDate || !start || !end) {
+    return false;
+  }
+
+  return !isBeforeDay(updatedAtDate, start) && !isAfterDay(updatedAtDate, end);
+}
+
+function hasTrackedStatusInPeriod(goal, start, end) {
+  const trackedDate = getTrackedStatusDate(goal.lastStatusChangedAt);
+  if (!trackedDate || !start || !end) {
+    return false;
+  }
+
+  return !isBeforeDay(trackedDate, start) && !isAfterDay(trackedDate, end);
+}
+
 function getGoalStateForPeriod(goal, start, end) {
+  const today = getToday();
+
+  // For single-day queries covering today, always read goal.status directly.
+  // applyGoalStatusChange writes to goal.status reliably, so this is the
+  // simplest and most correct path for the live goal list and stats cards.
+  if (start && end && sameDay(start, today) && sameDay(end, today)) {
+    return {
+      status: normalizeStatus(goal.status),
+      progress: clampNumber(goal.progress, 0, 100, 0),
+    };
+  }
+
   const entries = getHistoryEntriesForPeriod(goal, start, end);
 
   if (!entries.length) {
-    // KEY FIX: only reset for repeating goals
+    if (hasTrackedStatusInPeriod(goal, start, end)) {
+      return {
+        status: normalizeStatus(goal.lastStatus),
+        progress: clampNumber(goal.lastStatusProgress, 0, 100, 0),
+      };
+    }
+
+    if (hasUpdatedStateInPeriod(goal, start, end)) {
+      return {
+        status: normalizeStatus(goal.status),
+        progress: clampNumber(goal.progress, 0, 100, 0),
+      };
+    }
+
+    // Only reset for repeating goals with no history in this period
     if (goal.repeat && goal.repeat !== "none") {
       return { status: "not-started", progress: 0 };
     }
 
-    // keep original for non-repeating goals
     return {
       status: normalizeStatus(goal.status),
       progress: clampNumber(goal.progress, 0, 100, 0),
@@ -906,9 +1112,13 @@ function hasHistoryActivityInPeriod(goal, start, end) {
   return getHistoryEntriesForPeriod(goal, start, end).length > 0;
 }
 
+function goalRelevantToPeriod(goal, start, end) {
+  return hasHistoryActivityInPeriod(goal, start, end) || hasTrackedStatusInPeriod(goal, start, end) || hasUpdatedStateInPeriod(goal, start, end) || goalOccursWithin(goal, start, end);
+}
+
 function getGoalsForReportPeriod(start, end, selectedReportGoal = "all") {
   let reportGoals = state.goals.filter((goal) => {
-    return hasHistoryActivityInPeriod(goal, start, end) || goalOccursWithin(goal, start, end);
+    return goalRelevantToPeriod(goal, start, end);
   });
 
   if (selectedReportGoal !== "all") {
@@ -995,21 +1205,32 @@ function formatTime(value) {
 function getFilteredGoals() {
   const { start, end } = getFilterRange();
   const statusFilter = elements.goalListStatus.value;
+  const today = getToday();
 
   return [...state.goals]
     .sort(sortGoals)
-    .filter((goal) => goalOccursWithin(goal, start, end))
-    .filter((goal) => matchesStatusFilter(goal, statusFilter));
+    .filter((goal) => {
+      if (!start || !end) return true;
+      // For a single-day range on today, use exact same check as stats cards:
+      // isGoalScheduledOn — this keeps list count = button count
+      if (sameDay(start, today) && sameDay(end, today)) {
+        return isGoalScheduledOn(goal, today) || (goal.status === "completed" && hasHistoryActivityInPeriod(goal, today, today));
+      }
+      return goalRelevantToPeriod(goal, start, end);
+    })
+    .filter((goal) => matchesStatusFilter(goal, statusFilter, start, end));
 }
 
-function matchesStatusFilter(goal, filter) {
+function matchesStatusFilter(goal, filter, start, end) {
   if (filter === "all") return true;
+  if (filter === "not-completed") return normalizeStatus(goal.status) !== "completed";
   if (filter === "due-not-completed") {
     const today = getToday();
     const dueDate = dateFromIso(goal.dueDate);
     return Boolean(dueDate && !isAfterDay(dueDate, today) && goal.status !== "completed");
   }
-  return goal.status === filter;
+  // Always read goal.status directly — it is kept current by applyGoalStatusChange
+  return normalizeStatus(goal.status) === filter;
 }
 
 function sortGoals(left, right) {
@@ -1060,6 +1281,7 @@ async function updateAccountSettings(event) {
     }
     return;
   }
+
 
   const userName = elements.accountUserName?.value.trim() || "";
   const email = elements.accountEmail?.value.trim() || "";
@@ -1178,50 +1400,49 @@ function renderGoalPicker() {
 
 function renderSelectedGoal() {
   const goal = selectedGoal();
-  const isUpdateMode = elements.homeActionMode.value === "update";
-  elements.updateGoalSection.hidden = !isUpdateMode;
-  elements.updateGoalForm.hidden = !isUpdateMode;
+  elements.updateGoalSection.hidden = false;
+  elements.updateGoalForm.hidden = false;
   elements.subGoalSection.hidden = !goal;
-  elements.goalTitle.disabled = isUpdateMode && !goal;
-  elements.goalDate.disabled = isUpdateMode && !goal;
-  elements.goalTime.disabled = isUpdateMode && !goal;
-  elements.goalNotes.disabled = isUpdateMode && !goal;
-  elements.goalRepeat.disabled = isUpdateMode && !goal;
-  elements.goalRepeatInterval.disabled = isUpdateMode && !goal;
-  elements.goalRepeatUnit.disabled = isUpdateMode && !goal;
-  elements.goalSubmitButton.disabled = isUpdateMode && !goal;
   elements.updateGoalStatus.disabled = !goal;
   elements.updateGoalProgress.disabled = !goal;
   elements.updateGoalSubmitButton.disabled = !goal;
+  if (elements.updateGoalDeleteButton) {
+  elements.updateGoalDeleteButton.disabled = !goal;
+}
 
   if (!goal) {
-    elements.goalTitle.value = "";
-    elements.goalDate.value = "";
-    elements.goalTime.value = "";
-    elements.goalNotes.value = "";
-    elements.goalRepeat.value = "none";
-    elements.goalRepeatInterval.value = 2;
-    elements.goalRepeatUnit.value = "day";
     elements.updateGoalStatus.value = "not-started";
     elements.updateGoalProgress.value = 0;
-    elements.goalSubmitButton.textContent = isUpdateMode ? "Select a goal first" : "Save goal";
+    elements.goalSubmitButton.textContent = "Save goal";
     elements.selectedSubGoalList.innerHTML = "";
-    updateCustomRepeatVisibility();
+    renderUpdateStatusButtons("not-started", true);
     return;
   }
 
-  elements.goalTitle.value = goal.title;
-  elements.goalDate.value = goal.dueDate;
-  elements.goalTime.value = goal.time || "";
-  elements.goalNotes.value = goal.notes || "";
-  elements.goalRepeat.value = goal.repeat || "none";
-  elements.goalRepeatInterval.value = goal.repeatInterval || 2;
-  elements.goalRepeatUnit.value = goal.repeatUnit || "day";
-  elements.updateGoalStatus.value = goal.status;
-  elements.updateGoalProgress.value = goal.progress;
-  elements.goalSubmitButton.textContent = isUpdateMode ? "Update goal details" : "Save changes";
-  updateCustomRepeatVisibility();
+  const currentOccurrenceDate = firstOccurrenceWithin(goal, getToday(), getToday()) || getToday();
+  const currentState = getGoalStateForDate(goal, currentOccurrenceDate);
+  elements.updateGoalStatus.value = currentState.status;
+  elements.updateGoalProgress.value = currentState.progress;
+  elements.goalSubmitButton.textContent = "Save goal";
+  renderUpdateStatusButtons(currentState.status, false);
   renderSubGoals(goal);
+}
+
+function renderUpdateStatusButtons(activeStatus, disabled) {
+  if (!elements.updateStatusButtons) {
+    return;
+  }
+
+  elements.updateStatusButtons
+    .querySelectorAll("button[data-update-status-action]")
+    .forEach((buttonNode) => {
+      if (!(buttonNode instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      buttonNode.disabled = disabled;
+      buttonNode.classList.toggle("is-active", buttonNode.dataset.updateStatusAction === activeStatus);
+    });
 }
 
 function renderSubGoals(goal) {
@@ -1266,35 +1487,54 @@ function renderSubGoals(goal) {
 function renderStats() {
   const today = getToday();
   const allGoals = state.goals;
-  const todayGoals = allGoals.filter((goal) => goalOccursWithin(goal, today, today));
+
+  // Goals scheduled for today (has dueDate of today, or repeats on today)
+  const todayScheduled = allGoals.filter((goal) => {
+    if (!goal.dueDate) return false;
+    return isGoalScheduledOn(goal, today);
+  });
+
+  // Counts directly from goal.status — always current after applyGoalStatusChange
+  const plannedCount   = allGoals.filter((g) => g.status === "not-started").length;
+  const dueToday       = todayScheduled.filter((g) => g.status !== "completed").length;
+  const completedToday = todayScheduled.filter((g) => g.status === "completed").length;
+  const inProgressToday = todayScheduled.filter((g) => g.status === "in-progress").length;
   const dueNotCompleted = allGoals.filter((goal) => {
     const dueDate = dateFromIso(goal.dueDate);
     return dueDate && !isAfterDay(dueDate, today) && goal.status !== "completed";
-  });
+  }).length;
 
-  elements.totalGoals.textContent = String(allGoals.length);
-  elements.todayGoals.textContent = String(todayGoals.length);
-  elements.todayCompletedGoals.textContent = String(todayGoals.filter((goal) => goal.status === "completed").length);
-  elements.todayInProgressGoals.textContent = String(todayGoals.filter((goal) => goal.status === "in-progress").length);
-  elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
+  elements.totalGoals.textContent = String(plannedCount);
+  elements.todayGoals.textContent = String(dueToday);
+  elements.todayCompletedGoals.textContent = String(completedToday);
+  elements.todayInProgressGoals.textContent = String(inProgressToday);
+  elements.dueNotCompletedGoals.textContent = String(dueNotCompleted);
 
-  setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, percentFromGoals(todayGoals));
+  // For progress bars, use all today's scheduled goals (including completed)
+  const todayGoalsForProgress = todayScheduled.map((goal) => ({
+    goal,
+    state: { status: normalizeStatus(goal.status), progress: clampNumber(goal.progress, 0, 100, 0) },
+  }));
+
+  setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, percentFromGoalStates(todayGoalsForProgress));
   setProgressCard(
     elements.weeklyProgressValue,
     elements.weeklyProgressFill,
-    percentFromGoals(allGoals.filter((goal) => goalOccursWithin(goal, startOfWeek(today), endOfWeek(today)))),
+    percentFromGoalStates(
+      allGoals
+        .filter((goal) => goalRelevantToPeriod(goal, startOfWeek(today), endOfWeek(today)))
+        .map((goal) => ({ goal, state: getGoalStateForPeriod(goal, startOfWeek(today), endOfWeek(today)) })),
+    ),
   );
   setProgressCard(
     elements.yearlyProgressValue,
     elements.yearlyProgressFill,
-    percentFromGoals(allGoals.filter((goal) => goalOccursWithin(goal, startOfYear(today), endOfYear(today)))),
+    percentFromGoalStates(
+      allGoals
+        .filter((goal) => goalRelevantToPeriod(goal, startOfYear(today), endOfYear(today)))
+        .map((goal) => ({ goal, state: getGoalStateForPeriod(goal, startOfYear(today), endOfYear(today)) })),
+    ),
   );
-}
-
-function percentFromGoals(goals) {
-  if (!goals.length) return 0;
-  const completed = goals.filter((goal) => goal.status === "completed").length;
-  return Math.round((completed / goals.length) * 100);
 }
 
 function setProgressCard(labelNode, fillNode, percent) {
@@ -1302,41 +1542,173 @@ function setProgressCard(labelNode, fillNode, percent) {
   fillNode.style.width = `${percent}%`;
 }
 
+function renderGoalStatusButtons(goalId, currentStatus) {
+  return [
+    { value: "not-started", label: "Not started" },
+    { value: "in-progress", label: "In progress" },
+    { value: "completed", label: "Completed" },
+  ]
+    .map((item) => `
+      <button
+        type="button"
+        class="status-chip ${item.value === currentStatus ? "is-active" : ""}"
+        data-goal-status-action="${item.value}"
+        data-goal-id="${goalId}"
+      >
+        ${item.label}
+      </button>
+    `)
+    .join("");
+}
+
 function renderGoalList() {
   const goals = getFilteredGoals();
   const { start, end, label } = getFilterRange();
   elements.goalList.innerHTML = goals.length
     ? goals
-        .map((goal) => {
+      .map((goal) => {
           const occurrence = firstOccurrenceWithin(goal, start, end);
-          const occurrenceDate = occurrence || getToday();
+          const activityDate = getLatestHistoryDateInPeriod(goal, start, end);
+          const occurrenceDate = occurrence || activityDate || getToday();
           const stateForDate = getGoalStateForPeriod(goal, occurrenceDate, occurrenceDate);
           const success = getSuccess(goal, occurrenceDate);
           return `
-            <article class="goal-table-row">
-              <div class="goal-table-cell goal-table-title">${escapeHtml(goal.title)}</div>
-              <div class="goal-table-cell">
-                ${occurrence ? formatDate(occurrence) : formatDate(goal.dueDate)}
-                ${goal.time ? `<div class="goal-table-notes">${escapeHtml(formatTime(goal.time))}</div>` : ""}
-              </div>
-              <div class="goal-table-cell"><span class="pill">${statusLabel(stateForDate.status)}</span></div>
-              <div class="goal-table-cell">${stateForDate.progress}%</div>
-              <div class="goal-table-cell">${success.text}</div>
-              <div class="goal-table-cell"><span class="pill repeat-pill">${escapeHtml(getRepeatLabel(goal))}</span></div>
-              <div class="goal-table-cell goal-table-notes">${escapeHtml(goal.notes || "No notes")}</div>
-              <div class="goal-table-cell">
-                <div class="goal-actions">
-                  <select class="status-select ${statusClass(stateForDate.status)}" data-goal-id="${goal.id}">
-                    ${statusOptions(stateForDate.status)}
-                  </select>
-                  <button class="remove-btn" type="button" data-remove-goal="${goal.id}">Remove</button>
+            <article class="goal-list-card">
+              <div class="goal-list-card__header">
+                <div>
+                  <h3 class="goal-list-card__title">${escapeHtml(goal.title)}</h3>
+                  <p class="goal-list-card__date">${formatDate(occurrenceDate)}${goal.time ? ` at ${escapeHtml(formatTime(goal.time))}` : ""}</p>
                 </div>
+                <span class="pill">${statusLabel(stateForDate.status)}</span>
+              </div>
+              <div class="goal-list-card__meta">
+                <span class="goal-list-card__meta-item">Progress: ${stateForDate.progress}%</span>
+                <span class="goal-list-card__meta-item">Success: ${success.text}</span>
+                <span class="pill repeat-pill">${escapeHtml(getRepeatLabel(goal))}</span>
+              </div>
+              <p class="goal-list-card__notes">${escapeHtml(goal.notes || "No notes")}</p>
+              <div class="goal-list-card__actions">
+                <div class="status-chip-group">
+                  ${renderGoalStatusButtons(goal.id, stateForDate.status)}
+                </div>
+                <button class="remove-btn" type="button" data-remove-goal="${goal.id}">Remove</button>
               </div>
             </article>
           `;
         })
         .join("")
     : `<div class="empty-state">No goals found for ${label.toLowerCase()}.</div>`;
+
+  if (elements.plannerStatusMessage && !elements.plannerStatusMessage.textContent) {
+    setPlannerStatusMessage("Planner controls loaded.");
+  }
+}
+
+function handleGoalListStatusAction(goalId, statusValue) {
+  if (!goalId || !statusValue) return;
+
+  const goal = state.goals.find((item) => item.id === goalId);
+  if (!goal) {
+    setPlannerStatusMessage("Goal action could not find that goal.", "error");
+    return;
+  }
+
+  setPlannerStatusMessage(`Updating ${goal.title}...`);
+
+  const { start, end } = getFilterRange();
+  const occurrenceDate = firstOccurrenceWithin(goal, start, end) || getLatestHistoryDateInPeriod(goal, start, end) || getToday();
+  if (setGoalStatusForOccurrence(goal, statusValue, occurrenceDate, { cancelledMessage: "Update cancelled." })) {
+    setPlannerStatusMessage(`${goal.title} updated to ${statusLabel(statusValue)}.`, "success");
+    render();
+  }
+}
+
+function updateSelectedGoalFromForm() {
+  const goal = selectedGoal();
+  if (!goal) {
+    setPlannerStatusMessage("Select a goal first before updating it.", "error");
+    return;
+  }
+
+  setPlannerStatusMessage(`Updating ${goal.title}...`);
+  const occurrenceDate = firstOccurrenceWithin(goal, getToday(), getToday()) || getToday();
+  const nextStatus = normalizeStatus(elements.updateGoalStatus.value);
+  const requestedProgress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
+
+  if (setGoalStatusForOccurrence(goal, nextStatus, occurrenceDate, {
+    preferredProgress: requestedProgress,
+    cancelledMessage: "Update cancelled.",
+  })) {
+    state.ui.selectedGoalId = goal.id;
+    setPlannerStatusMessage(`${goal.title} updated to ${statusLabel(nextStatus)}.`, "success");
+    render();
+  }
+}
+
+function deleteSelectedGoalFromForm() {
+  const goal = selectedGoal();
+  if (!goal) {
+    setPlannerStatusMessage("Select a goal first before deleting it.", "error");
+    return;
+  }
+  if (!confirm(`Delete "${goal.title}"?`)) {
+    setPlannerStatusMessage("Delete cancelled.", "error");
+    return;
+  }
+  state.goals = state.goals.filter((item) => item.id !== goal.id);
+  state.ui.selectedGoalId = "";
+  elements.homeActionMode.value = "create";
+  setPlannerStatusMessage(`${goal.title} was deleted.`, "success");
+  render();
+}
+
+function setSelectedGoalStatusAction(statusValue) {
+  const goal = selectedGoal();
+  if (!goal) {
+    setPlannerStatusMessage("Select a goal first before updating it.", "error");
+    return;
+  }
+
+  elements.updateGoalStatus.value = normalizeStatus(statusValue);
+  renderUpdateStatusButtons(normalizeStatus(statusValue), false);
+
+  if (statusValue === "completed") {
+    elements.updateGoalProgress.value = 100;
+  } else if (statusValue === "not-started") {
+    elements.updateGoalProgress.value = 0;
+  } else if (Number(elements.updateGoalProgress.value) <= 0) {
+    elements.updateGoalProgress.value = 50;
+  }
+
+  updateSelectedGoalFromForm();
+}
+
+function setGoalStatusForOccurrence(goal, statusValue, occurrenceDate, options = {}) {
+  const nextStatus = normalizeStatus(statusValue);
+  const previousState = getGoalStateForDate(goal, occurrenceDate);
+  let nextProgress = options.preferredProgress ?? previousState.progress;
+
+  if (nextStatus === "completed") {
+    nextProgress = 100;
+  } else if (nextStatus === "not-started") {
+    nextProgress = 0;
+  } else if (nextProgress <= 0) {
+    if (options.preferredProgress !== undefined && options.preferredProgress > 0) {
+      nextProgress = options.preferredProgress;
+    } else {
+      nextProgress = previousState.progress > 0 ? previousState.progress : (goal.progress > 0 ? goal.progress : 50);
+    }
+  }
+
+  applyGoalStatusChange(goal, nextStatus, nextProgress, occurrenceDate);
+  return true;
+}
+
+if (typeof window !== "undefined") {
+  window.goalPlannerSetStatus = handleGoalListStatusAction;
+  window.goalPlannerApplySelectedStatus = updateSelectedGoalFromForm;
+  window.goalPlannerDeleteSelectedGoal = deleteSelectedGoalFromForm;
+  window.goalPlannerSetSelectedStatus = setSelectedGoalStatusAction;
 }
 
 function renderReports() {
@@ -1677,6 +2049,46 @@ function updateCalendarVisibility() {
   elements.goalListCalendarWrap.hidden = elements.goalListRange.value !== "calendar";
 }
 
+function handleGoalListStatusChange(target) {
+  if (!(target instanceof HTMLSelectElement)) return;
+
+  const goalId = target.dataset.goalId;
+  const subGoalId = target.dataset.subgoalId;
+
+  if (goalId && subGoalId) {
+    const goal = state.goals.find((item) => item.id === goalId);
+    const subGoal = goal?.subGoals.find((item) => item.id === subGoalId);
+    if (!subGoal || !goal) return;
+
+    subGoal.status = normalizeStatus(target.value);
+    syncGoalFromSubGoals(goal);
+    recordGoalHistory(goal);
+    render();
+    return;
+  }
+
+  if (!goalId) return;
+  const goal = state.goals.find((item) => item.id === goalId);
+  if (!goal) return;
+
+  const { start, end } = getFilterRange();
+  const occurrenceDate = firstOccurrenceWithin(goal, start, end) || getLatestHistoryDateInPeriod(goal, start, end) || getToday();
+  const previousState = getGoalStateForDate(goal, occurrenceDate);
+  const nextStatus = normalizeStatus(target.value);
+  let nextProgress = previousState.progress;
+
+  if (nextStatus === "completed") {
+    nextProgress = 100;
+  } else if (nextStatus === "not-started") {
+    nextProgress = 0;
+  } else {
+    nextProgress = previousState.progress > 0 ? previousState.progress : (goal.progress > 0 ? goal.progress : 50);
+  }
+
+  applyGoalStatusChange(goal, nextStatus, nextProgress, occurrenceDate);
+  render();
+}
+
 function wireEvents() {
   elements.signupButton?.addEventListener("click", signUpUser);
   elements.loginButton?.addEventListener("click", loginUser);
@@ -1752,21 +2164,15 @@ function wireEvents() {
       return;
     }
 
-    const requestedProgress = requestProgressValue(Number(elements.updateGoalProgress.value) || 50);
-    if (requestedProgress === null) {
-      elements.updateGoalStatus.value = previousStatus;
-      elements.updateGoalProgress.value = previousProgress;
-      return;
+    const currentProgress = Number(elements.updateGoalProgress.value) || 0;
+    if (currentProgress <= 0) {
+      elements.updateGoalProgress.value = 50;
     }
-
-    elements.updateGoalProgress.value = requestedProgress;
   });
 
   elements.goalForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const goal = selectedGoal();
-    const isUpdateMode = elements.homeActionMode.value === "update";
     const payload = {
       title: elements.goalTitle.value.trim(),
       dueDate: elements.goalDate.value,
@@ -1779,50 +2185,42 @@ function wireEvents() {
     };
 
     if (!payload.title) return;
-    if (isUpdateMode && !goal) return;
 
     if (payload.repeat !== "custom") {
       payload.repeatInterval = 1;
       payload.repeatUnit = "day";
     }
 
-    if (goal) {
-      Object.assign(goal, payload);
-      recordGoalHistory(goal);
-    } else {
-      const createdGoal = normalizeGoal({
-        ...payload,
-        status: "not-started",
-        progress: 0,
-        createdAt: new Date().toISOString(),
-      });
-      state.goals.push(createdGoal);
-    }
+    const createdGoal = normalizeGoal({
+      ...payload,
+      status: "not-started",
+      progress: 0,
+      createdAt: new Date().toISOString(),
+    });
+    state.goals.push(createdGoal);
 
-    state.ui.selectedGoalId = "";
-    elements.goalListRange.value = "today";
-    elements.goalListStatus.value = "all";
+    elements.goalForm.reset();
+    elements.goalRepeat.value = "none";
+    elements.goalRepeatInterval.value = 2;
+    elements.goalRepeatUnit.value = "day";
+    updateCustomRepeatVisibility();
+   elements.goalListRange.value = "today";
+    elements.goalListStatus.value = "not-started";
+    setPlannerStatusMessage(`${createdGoal.title} saved as a new goal.`, "success");
     render();
   });
 
   elements.updateGoalForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    const goal = selectedGoal();
-    if (!goal) return;
-    goal.status = normalizeStatus(elements.updateGoalStatus.value);
-    goal.progress = clampNumber(elements.updateGoalProgress.value, 0, 100, 0);
-    if (goal.status === "in-progress" && goal.progress <= 0) {
-      const requestedProgress = requestProgressValue(50);
-      if (requestedProgress === null) return;
-      goal.progress = requestedProgress;
-      elements.updateGoalProgress.value = requestedProgress;
-    }
-    if (goal.status === "completed") goal.progress = 100;
-    if (goal.status === "not-started") goal.progress = 0;
-    goal.updatedAt = new Date().toISOString();
-    recordGoalHistory(goal);
-    state.ui.selectedGoalId = goal.id;
-    render();
+    updateSelectedGoalFromForm();
+  });
+
+  elements.updateGoalSubmitButton?.addEventListener("click", () => {
+    updateSelectedGoalFromForm();
+  });
+
+  elements.updateGoalDeleteButton?.addEventListener("click", () => {
+    deleteSelectedGoalFromForm();
   });
 
   elements.subGoalForm.addEventListener("submit", (event) => {
@@ -1875,89 +2273,28 @@ function wireEvents() {
   });
 
   elements.goalList.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) return;
+    handleGoalListStatusChange(event.target);
+  });
 
-    const goalId = target.dataset.goalId;
-    const subGoalId = target.dataset.subgoalId;
-
-    if (goalId && subGoalId) {
-      const goal = state.goals.find((item) => item.id === goalId);
-      const subGoal = goal?.subGoals.find((item) => item.id === subGoalId);
-      if (!subGoal || !goal) return;
-
-      subGoal.status = normalizeStatus(target.value);
-      syncGoalFromSubGoals(goal);
-      recordGoalHistory(goal);
-      render();
-      return;
-    }
-
-    if (!goalId) return;
-    const goal = state.goals.find((item) => item.id === goalId);
-    if (!goal) return;
-    const occurrenceDate = firstOccurrenceWithin(goal, getFilterRange().start, getFilterRange().end) || getToday();
-const previousStatus = goal.status;
-goal.status = normalizeStatus(target.value);
-
-if (goal.status === "completed") {
-  goal.progress = 100;
-} else if (goal.status === "not-started") {
-  goal.progress = 0;
-} else {
-  const requestedProgress = requestProgressValue(goal.progress || 50);
-  if (requestedProgress === null) {
-    goal.status = previousStatus;
-    target.value = previousStatus;
-    render({ keepTimestamp: true, skipSave: true });
-    return;
-  }
-  goal.progress = requestedProgress;
-}
-
-goal.updatedAt = new Date().toISOString();
-
-recordGoalHistoryForDate(goal, occurrenceDate);
-
-if (goal.status === "completed" && goal.repeat && goal.repeat !== "none") {
-  const currentDueDate = dateFromIso(goal.dueDate) || getToday();
-
-  if (goal.repeat === "daily") {
-    goal.dueDate = toIsoDate(addDays(currentDueDate, 1));
-  } else if (goal.repeat === "weekly") {
-    goal.dueDate = toIsoDate(addDays(currentDueDate, 7));
-  } else if (goal.repeat === "monthly") {
-    goal.dueDate = toIsoDate(addMonths(currentDueDate, 1));
-  } else if (goal.repeat === "yearly") {
-    goal.dueDate = toIsoDate(addYears(currentDueDate, 1));
-  } else if (goal.repeat === "custom") {
-    const interval = Math.max(1, goal.repeatInterval || 1);
-
-    if (goal.repeatUnit === "day") {
-      goal.dueDate = toIsoDate(addDays(currentDueDate, interval));
-    } else if (goal.repeatUnit === "week") {
-      goal.dueDate = toIsoDate(addDays(currentDueDate, interval * 7));
-    } else if (goal.repeatUnit === "month") {
-      goal.dueDate = toIsoDate(addMonths(currentDueDate, interval));
-    } else if (goal.repeatUnit === "year") {
-      goal.dueDate = toIsoDate(addYears(currentDueDate, interval));
-    }
-  }
-
-  goal.status = "not-started";
-  goal.progress = 0;
-}
-
-render();
+  elements.goalList.addEventListener("input", (event) => {
+    handleGoalListStatusChange(event.target);
   });
 
   elements.goalList.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (!target.dataset.removeGoal) return;
 
-    state.goals = state.goals.filter((goal) => goal.id !== target.dataset.removeGoal);
-    if (state.ui.selectedGoalId === target.dataset.removeGoal) {
+    const statusButton = target.closest("button[data-goal-status-action][data-goal-id]");
+    if (statusButton instanceof HTMLButtonElement) {
+      handleGoalListStatusAction(statusButton.dataset.goalId, statusButton.dataset.goalStatusAction);
+      return;
+    }
+
+    const removeButton = target.closest("button[data-remove-goal]");
+    if (!(removeButton instanceof HTMLButtonElement)) return;
+
+    state.goals = state.goals.filter((goal) => goal.id !== removeButton.dataset.removeGoal);
+    if (state.ui.selectedGoalId === removeButton.dataset.removeGoal) {
       state.ui.selectedGoalId = "";
     }
     render();
@@ -1969,8 +2306,10 @@ render();
       const range = button.getAttribute("data-range");
       const status = button.getAttribute("data-status");
       state.ui.goalListCollapsed = false;
-      if (range) elements.goalListRange.value = range;
-      elements.goalListStatus.value = status || "all";
+      // Apply range filter — default to "today" if not specified
+      elements.goalListRange.value = range || "today";
+      // Apply status filter — use the button's data-status, default to "not-started"
+      elements.goalListStatus.value = status || "not-started";
       updateCalendarVisibility();
       render({ keepTimestamp: true, skipSave: true });
       document.getElementById("allGoalsSection")?.scrollIntoView({ behavior: "smooth", block: "start" });

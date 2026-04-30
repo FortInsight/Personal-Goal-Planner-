@@ -1,10 +1,14 @@
-const CACHE_NAME = "goal-planner-v8";
+const CACHE_NAME = "goal-planner-v10";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=2026-04-26-1",
-  "./rebuilt-dashboard.js?v=2026-04-26-1",
+  "./home.html",
+  "./login.html",
+  "./goal.html",
+  "./styles.css?v=2026-04-29-1",
+  "./rebuilt-dashboard.js?v=2026-04-29-1",
   "./manifest.webmanifest",
+  "./planner.webmanifest",
   "./assets/icon.svg"
 ];
 
@@ -26,6 +30,12 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
@@ -36,10 +46,13 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(async () => {
+          const cachedPage = await caches.match(event.request);
+          return cachedPage || caches.match("./goal.html") || caches.match("./home.html");
+        })
     );
     return;
   }
