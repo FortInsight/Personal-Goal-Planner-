@@ -9,13 +9,12 @@
   <meta name="theme-color" content="#0a224a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="planner.webmanifest">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2026-04-28-2">
+  <link rel="stylesheet" href="styles.css?v=2026-04-30-2">
 </head>
 <body class="planner-body">
   <div class="app-shell app-shell--planner">
@@ -80,16 +79,16 @@
           </div>
         </div>
 
+        <p id="plannerStatusMessage" class="planner-status-message" aria-live="polite"></p>
+
         <div class="report-controls action-switch">
           <label class="period-picker">
             Goal action
             <div class="action-mode-buttons" role="group" aria-label="Goal action">
               <button type="button" class="action-mode-btn is-active" data-action-mode="create">Create a new goal</button>
-              <button type="button" class="action-mode-btn" data-action-mode="update">Update existing goal</button>
             </div>
             <select id="homeActionMode" hidden aria-hidden="true" tabindex="-1">
               <option value="create" selected>Create a new goal</option>
-              <option value="update">Update existing goal</option>
             </select>
           </label>
         </div>
@@ -168,6 +167,14 @@
               <h2>Adjust the goal status and progress</h2>
             </div>
           </div>
+          <div class="status-update-panel">
+            <p class="status-update-panel__label">Quick status update</p>
+            <div id="updateStatusButtons" class="status-chip-group status-chip-group--form">
+              <button type="button" class="status-chip" data-update-status-action="not-started" onclick="window.goalPlannerSetSelectedStatus && window.goalPlannerSetSelectedStatus('not-started')">Not started</button>
+              <button type="button" class="status-chip" data-update-status-action="in-progress" onclick="window.goalPlannerSetSelectedStatus && window.goalPlannerSetSelectedStatus('in-progress')">In progress</button>
+              <button type="button" class="status-chip" data-update-status-action="completed" onclick="window.goalPlannerSetSelectedStatus && window.goalPlannerSetSelectedStatus('completed')">Completed</button>
+            </div>
+          </div>
           <div class="two-up">
             <label>
               Status
@@ -182,7 +189,10 @@
               <input id="updateGoalProgress" name="updateGoalProgress" type="number" min="0" max="100" step="5" value="0">
             </label>
           </div>
-          <button id="updateGoalSubmitButton" type="submit" class="primary-btn">Update goal</button>
+          <div class="goal-actions">
+            <button id="updateGoalSubmitButton" type="button" class="primary-btn" onclick="window.goalPlannerApplySelectedStatus && window.goalPlannerApplySelectedStatus()">Update goal</button>
+            <button id="updateGoalDeleteButton" type="button" class="remove-btn" onclick="window.goalPlannerDeleteSelectedGoal && window.goalPlannerDeleteSelectedGoal()">Delete goal and occurrences</button>
+          </div>
         </form>
 
         <div id="subGoalSection" class="subgoal-panel" hidden>
@@ -217,7 +227,7 @@
           </div>
         </div>
         <div class="stats-grid">
-          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection" data-range="all" data-status="not-started">
+          <button id="toggleGoalList" class="stat-box stat-button" type="button" aria-expanded="true" aria-controls="goalList" data-target="allGoalsSection" data-range="planned">
             <span>Planned goals</span>
             <strong id="totalGoals">0</strong>
           </button>
@@ -233,7 +243,7 @@
             <span>In progress today</span>
             <strong id="todayInProgressGoals">0</strong>
           </button>
-          <button class="stat-box stat-button stat-button--danger" type="button" data-target="allGoalsSection" data-range="all" data-status="due-not-completed">
+          <button class="stat-box stat-button stat-button--danger" type="button" data-target="allGoalsSection" data-range="today" data-status="due-not-completed">
             <span>Due and not completed</span>
             <strong id="dueNotCompletedGoals">0</strong>
           </button>
@@ -251,6 +261,7 @@
               Show by
               <select id="goalListRange">
                 <option value="all" selected>All</option>
+                <option value="planned">Planned</option>
                 <option value="today">Today</option>
                 <option value="tomorrow">Tomorrow</option>
                 <option value="week">Week</option>
@@ -266,12 +277,11 @@
             <label class="period-picker">
               Status
               <select id="goalListStatus">
-                <option value="all">All</option>
-                <option value="not-completed">Active (not completed)</option>
-                <option value="not-started" selected>Not started</option>
+                <option value="all" selected>All</option>
+                <option value="due-not-completed">Due and not completed</option>
+                <option value="not-started">Not started</option>
                 <option value="in-progress">In progress</option>
                 <option value="completed">Completed</option>
-                <option value="due-not-completed">Due and not completed</option>
               </select>
             </label>
             <button id="toggleGoalTableButton" class="ghost-btn compact-btn" type="button" aria-expanded="true" aria-controls="goalTableWrap">
@@ -415,7 +425,7 @@
     </main>
   </div>
 
-  <script src="rebuilt-dashboard.js?v=2026-04-28-2"></script>
+  <script src="rebuilt-dashboard.js?v=2026-04-30-2"></script>
   <style>
     .action-mode-buttons {
       display: grid;
