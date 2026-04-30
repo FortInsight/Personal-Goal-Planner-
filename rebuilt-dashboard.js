@@ -966,9 +966,12 @@ function applyGoalStatusChange(goal, status, progress, occurrenceDate) {
 
   goal.lastStatus = goal.status;
   goal.lastStatusProgress = goal.progress;
-  goal.lastStatusChangedAt = occurrenceDate.toISOString();
+  // Use local noon for date-only fields to prevent UTC offset from
+  // shifting the tracked date to the wrong calendar day.
+  const trackedNoon = new Date(occurrenceDate.getFullYear(), occurrenceDate.getMonth(), occurrenceDate.getDate(), 12, 0, 0, 0);
+  goal.lastStatusChangedAt = trackedNoon.toISOString();
   if (goal.status === "completed") {
-    goal.lastCompletedAt = occurrenceDate.toISOString();
+    goal.lastCompletedAt = trackedNoon.toISOString();
   }
 
   goal.updatedAt = new Date().toISOString();
@@ -1518,14 +1521,10 @@ function renderStats() {
   const dueTodayGoals = getDueTodayGoalEntries(today);
   const dueTodayNotCompleted = dueTodayGoals.filter((entry) => entry.state.status !== "completed");
   const plannedGoals = allGoals.filter((goal) => isPlannedGoalForDate(goal, today));
-  // Due and not completed: all goals that occur on or before today and are not completed
-  const dueNotCompleted = allGoals
-    .filter((goal) => isDueAndNotCompletedGoal(goal, today))
-    .map((goal) => ({ goal, state: getGoalStateForDate(goal, today) }));
+  const dueNotCompleted = dueTodayNotCompleted;
 
   elements.totalGoals.textContent = String(plannedGoals.length);
-  // Due today: matches list filter (range=today, status=not-completed) — goals relevant today that aren't completed
-  elements.todayGoals.textContent = String(todayGoals.filter((entry) => entry.state.status !== "completed").length);
+  elements.todayGoals.textContent = String(dueTodayNotCompleted.length);
   elements.todayCompletedGoals.textContent = String(todayGoals.filter((entry) => entry.state.status === "completed").length);
   elements.todayInProgressGoals.textContent = String(todayGoals.filter((entry) => entry.state.status === "in-progress").length);
   elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
@@ -2391,8 +2390,12 @@ function recordGoalHistoryForDate(goal, date) {
     goal.history = [];
   }
 
+  // Use local noon to prevent UTC offset from rolling the date to the wrong day
+  // when the entry is later read back and normalized in getHistoryEntriesForPeriod.
+  const localNoon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+
   goal.history.push({
-    date: date.toISOString(),
+    date: localNoon.toISOString(),
     status: goal.status,
     progress: goal.progress
   });
