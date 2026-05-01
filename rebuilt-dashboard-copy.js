@@ -303,7 +303,7 @@ function initialize() {
   state.ui.activeView = "goals";
   elements.goalListCalendarDate.value = toIsoDate(getToday());
   elements.goalListRange.value = "today";
-  elements.goalListStatus.value = "not-completed";
+  elements.goalListStatus.value = "due-not-completed";
   elements.reportRange.value = state.ui.reportRange || "day";
   state.ui.reportRange = elements.reportRange.value;
   updateCustomRepeatVisibility();
@@ -845,7 +845,10 @@ function goalOccursWithin(goal, start, end) {
 
 function isPlannedGoalForDate(goal, date = getToday()) {
   if (!goal) return false;
-  return getGoalStateForDate(goal, date).status !== "completed";
+  if (goal.repeat && goal.repeat !== "none") {
+    return true;
+  }
+  return !wasGoalCompletedInPeriod(goal, date, date) && getGoalStateForDate(goal, date).status !== "completed";
 }
 
 function isDueAndNotCompletedGoal(goal, date = getToday()) {
@@ -853,7 +856,7 @@ function isDueAndNotCompletedGoal(goal, date = getToday()) {
     return false;
   }
 
-  return getGoalStateForDate(goal, date).status !== "completed";
+  return !wasGoalCompletedInPeriod(goal, date, date) && getGoalStateForDate(goal, date).status !== "completed";
 }
 
 function firstOccurrenceWithin(goal, start, end) {
@@ -942,7 +945,7 @@ function advanceRepeatingGoal(goal, baseDate) {
     return;
   }
 
-  const currentDueDate = dateFromIso(goal.dueDate) || baseDate || getToday();
+  const currentDueDate = baseDate || dateFromIso(goal.dueDate) || getToday();
 
   if (goal.repeat === "daily") {
     goal.dueDate = toIsoDate(addDays(currentDueDate, 1));
@@ -1077,6 +1080,44 @@ function hasTrackedStatusInPeriod(goal, start, end) {
   return !isBeforeDay(trackedDate, start) && !isAfterDay(trackedDate, end);
 }
 
+function hasCompletedEventInPeriod(goal, start, end) {
+  if (getHistoryEntriesForPeriod(goal, start, end).some((entry) => normalizeStatus(entry.status) === "completed")) {
+    return true;
+  }
+
+  const completedDate = getTrackedStatusDate(goal.lastCompletedAt);
+  if (completedDate && start && end && !isBeforeDay(completedDate, start) && !isAfterDay(completedDate, end)) {
+    return true;
+  }
+
+  return Boolean(normalizeStatus(goal.lastStatus) === "completed" && hasTrackedStatusInPeriod(goal, start, end));
+}
+
+function getEffectiveStatusForPeriod(goal, start, end) {
+  if (start && end && sameDay(start, end) && hasCompletedEventInPeriod(goal, start, end)) {
+    return "completed";
+  }
+
+  const entries = getHistoryEntriesForPeriod(goal, start, end);
+  if (entries.length) {
+    return normalizeStatus(entries[entries.length - 1].status);
+  }
+
+  if (hasTrackedStatusInPeriod(goal, start, end)) {
+    return normalizeStatus(goal.lastStatus);
+  }
+
+  if (hasUpdatedStateInPeriod(goal, start, end)) {
+    return normalizeStatus(goal.status);
+  }
+
+  return getGoalStateForPeriod(goal, start, end).status;
+}
+
+function wasGoalCompletedInPeriod(goal, start, end) {
+  return hasCompletedEventInPeriod(goal, start, end);
+}
+
 function getGoalStateForPeriod(goal, start, end) {
   const entries = getHistoryEntriesForPeriod(goal, start, end);
 
@@ -1124,7 +1165,13 @@ function goalRelevantToPeriod(goal, start, end) {
 }
 
 function getGoalsForReportPeriod(start, end, selectedReportGoal = "all") {
+  const isSingleDayPeriod = Boolean(start && end && sameDay(start, end));
+
   let reportGoals = state.goals.filter((goal) => {
+    if (isSingleDayPeriod) {
+      return goalOccursWithin(goal, start, end) || wasGoalCompletedInPeriod(goal, start, end);
+    }
+
     return goalRelevantToPeriod(goal, start, end);
   });
 
@@ -1142,11 +1189,12 @@ function summarizeGoalsForPeriod(start, end, selectedReportGoal = "all") {
   let notStarted = 0;
 
   scheduledGoals.forEach((goal) => {
-    const periodState = getGoalStateForPeriod(goal, start, end);
-    if (periodState.status === "completed") {
+    if (wasGoalCompletedInPeriod(goal, start, end)) {
       completed += 1;
       return;
     }
+
+    const periodState = getGoalStateForPeriod(goal, start, end);
     if (periodState.status === "in-progress") {
       inProgress += 1;
       return;
@@ -1233,7 +1281,14 @@ function matchesStatusFilter(goal, filter, start, end) {
     return getGoalStateForDate(goal, occurrenceDate).status !== "completed";
   }
   if (filter === "due-not-completed") {
-    return isDueAndNotCompletedGoal(goal, getToday());
+    const comparisonDate = start || getToday();
+    return isDueAndNotCompletedGoal(goal, comparisonDate);
+  }
+  if (filter === "completed") {
+    if (!start || !end) {
+      return normalizeStatus(goal.status) === "completed";
+    }
+    return getEffectiveStatusForPeriod(goal, start, end) === "completed";
   }
   const occurrenceDate = firstOccurrenceWithin(goal, start, end) || getToday();
   return getGoalStateForDate(goal, occurrenceDate).status === filter;
@@ -1287,7 +1342,7 @@ function ensureGoalStatusOptions() {
     { value: "not-started", label: "Not started" },
     { value: "in-progress", label: "In progress" },
     { value: "completed", label: "Completed" },
-    { value: "due-not-completed", label: "Due and not completed" },
+    { value: "due-not-completed", label: "Due today and not completed" },
   ];
 
   elements.goalListStatus.innerHTML = options
@@ -1447,6 +1502,30 @@ function renderGoalPicker() {
   elements.goalPicker.value = current;
 }
 
+function resetGoalDetailsForm() {
+  elements.goalForm.reset();
+  elements.goalRepeat.value = "none";
+  elements.goalRepeatInterval.value = 2;
+  elements.goalRepeatUnit.value = "day";
+  updateCustomRepeatVisibility();
+}
+
+function fillGoalDetailsForm(goal) {
+  if (!goal) {
+    resetGoalDetailsForm();
+    return;
+  }
+
+  elements.goalTitle.value = goal.title || "";
+  elements.goalDate.value = goal.dueDate || "";
+  elements.goalTime.value = goal.time || "";
+  elements.goalNotes.value = goal.notes || "";
+  elements.goalRepeat.value = goal.repeat || "none";
+  elements.goalRepeatInterval.value = clampNumber(goal.repeatInterval, 1, 999, 1) || 1;
+  elements.goalRepeatUnit.value = goal.repeatUnit || "day";
+  updateCustomRepeatVisibility();
+}
+
 function renderSelectedGoal() {
   const goal = selectedGoal();
   elements.updateGoalSection.hidden = false;
@@ -1458,6 +1537,7 @@ function renderSelectedGoal() {
   elements.updateGoalDeleteButton.disabled = !goal;
 
   if (!goal) {
+    fillGoalDetailsForm(null);
     elements.updateGoalStatus.value = "not-started";
     elements.updateGoalProgress.value = 0;
     elements.goalSubmitButton.textContent = "Save goal";
@@ -1466,11 +1546,12 @@ function renderSelectedGoal() {
     return;
   }
 
+  fillGoalDetailsForm(goal);
   const currentOccurrenceDate = firstOccurrenceWithin(goal, getToday(), getToday()) || getToday();
   const currentState = getGoalStateForDate(goal, currentOccurrenceDate);
   elements.updateGoalStatus.value = currentState.status;
   elements.updateGoalProgress.value = currentState.progress;
-  elements.goalSubmitButton.textContent = "Save goal";
+  elements.goalSubmitButton.textContent = "Update goal details";
   renderUpdateStatusButtons(currentState.status, false);
   renderSubGoals(goal);
 }
@@ -1536,35 +1617,32 @@ function renderStats() {
   const allGoals = state.goals;
   const todayGoals = getTodayOccurrenceGoals();
   const dueTodayGoals = getDueTodayGoalEntries(today);
-  const dueTodayNotCompleted = dueTodayGoals.filter((entry) => entry.state.status !== "completed");
+  const dueTodayNotCompleted = dueTodayGoals.filter((entry) => !wasGoalCompletedInPeriod(entry.goal, today, today));
   const plannedGoals = allGoals.filter((goal) => isPlannedGoalForDate(goal, today));
   const dueNotCompleted = dueTodayNotCompleted;
+  const dailySummary = summarizeGoalsForPeriod(today, today);
+  const weeklySummary = summarizeGoalsForPeriod(startOfWeek(today), endOfWeek(today));
+  const yearlySummary = summarizeGoalsForPeriod(startOfYear(today), endOfYear(today));
 
-  elements.totalGoals.textContent = String(plannedGoals.length);
-  elements.todayGoals.textContent = String(dueTodayNotCompleted.length);
-  elements.todayCompletedGoals.textContent = String(todayGoals.filter((entry) => entry.state.status === "completed").length);
-  elements.todayInProgressGoals.textContent = String(todayGoals.filter((entry) => entry.state.status === "in-progress").length);
-  elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
+  if (elements.totalGoals) {
+    elements.totalGoals.textContent = String(plannedGoals.length);
+  }
+  if (elements.todayGoals) {
+    elements.todayGoals.textContent = String(dueTodayNotCompleted.length);
+  }
+  if (elements.todayCompletedGoals) {
+    elements.todayCompletedGoals.textContent = String(allGoals.filter((goal) => wasGoalCompletedInPeriod(goal, today, today)).length);
+  }
+  if (elements.todayInProgressGoals) {
+    elements.todayInProgressGoals.textContent = String(todayGoals.filter((entry) => entry.state.status === "in-progress").length);
+  }
+  if (elements.dueNotCompletedGoals) {
+    elements.dueNotCompletedGoals.textContent = String(dueNotCompleted.length);
+  }
 
-  setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, percentFromGoalStates(todayGoals));
-  setProgressCard(
-    elements.weeklyProgressValue,
-    elements.weeklyProgressFill,
-    percentFromGoalStates(
-      allGoals
-        .filter((goal) => goalRelevantToPeriod(goal, startOfWeek(today), endOfWeek(today)))
-        .map((goal) => ({ goal, state: getGoalStateForPeriod(goal, startOfWeek(today), endOfWeek(today)) })),
-    ),
-  );
-  setProgressCard(
-    elements.yearlyProgressValue,
-    elements.yearlyProgressFill,
-    percentFromGoalStates(
-      allGoals
-        .filter((goal) => goalRelevantToPeriod(goal, startOfYear(today), endOfYear(today)))
-        .map((goal) => ({ goal, state: getGoalStateForPeriod(goal, startOfYear(today), endOfYear(today)) })),
-    ),
-  );
+  setProgressCard(elements.dailyProgressValue, elements.dailyProgressFill, dailySummary.percent);
+  setProgressCard(elements.weeklyProgressValue, elements.weeklyProgressFill, weeklySummary.percent);
+  setProgressCard(elements.yearlyProgressValue, elements.yearlyProgressFill, yearlySummary.percent);
 }
 
 function setProgressCard(labelNode, fillNode, percent) {
@@ -1584,7 +1662,6 @@ function renderGoalStatusButtons(goalId, currentStatus) {
         class="status-chip ${item.value === currentStatus ? "is-active" : ""}"
         data-goal-status-action="${item.value}"
         data-goal-id="${goalId}"
-        onclick="window.goalPlannerSetStatus && window.goalPlannerSetStatus('${goalId}', '${item.value}')"
       >
         ${item.label}
       </button>
@@ -1605,9 +1682,17 @@ function renderGoalList() {
             ? (dateFromIso(goal.dueDate) || activityDate || getToday())
             : (occurrence || activityDate || getToday());
           const stateForDate = range === "planned"
-            ? getGoalStateForDate(goal, getToday())
-            : getGoalStateForPeriod(goal, occurrenceDate, occurrenceDate);
-          const success = getSuccess(goal, occurrenceDate);
+            ? {
+                status: normalizeStatus(goal.status),
+                progress: clampNumber(goal.progress, 0, 100, 0),
+              }
+            : {
+                status: getEffectiveStatusForPeriod(goal, occurrenceDate, occurrenceDate),
+                progress: getGoalStateForPeriod(goal, occurrenceDate, occurrenceDate).progress,
+              };
+          const success = range === "planned"
+            ? { pct: clampNumber(goal.progress, 0, 100, 0), text: `${clampNumber(goal.progress, 0, 100, 0)}%` }
+            : getSuccess(goal, occurrenceDate);
           const dateLabel = !goal.dueDate && range === "planned"
             ? "No due date"
             : `${formatDate(occurrenceDate)}${goal.time ? ` at ${escapeHtml(formatTime(goal.time))}` : ""}`;
@@ -1813,7 +1898,7 @@ function renderReports() {
 
 function getCompletedGoalsForPeriod(start, end, selectedReportGoal = "all") {
   return getGoalsForReportPeriod(start, end, selectedReportGoal)
-    .filter((goal) => getGoalStateForPeriod(goal, start, end).status === "completed")
+    .filter((goal) => wasGoalCompletedInPeriod(goal, start, end))
     .sort(sortGoals);
 }
 
@@ -2193,6 +2278,11 @@ function wireEvents() {
   elements.viewTabs.forEach((button) => {
     button.addEventListener("click", () => {
       state.ui.activeView = button.dataset.viewTab;
+      if (button.dataset.viewTab === "goals") {
+        elements.goalListRange.value = "today";
+        elements.goalListStatus.value = "due-not-completed";
+        updateCalendarVisibility();
+      }
       setMenuOpen(false);
       render({ keepTimestamp: true });
       scrollToActiveView();
@@ -2254,6 +2344,24 @@ function wireEvents() {
       payload.repeatUnit = "day";
     }
 
+    const existingGoal = selectedGoal();
+    if (existingGoal) {
+      existingGoal.title = payload.title;
+      existingGoal.dueDate = payload.dueDate;
+      existingGoal.time = payload.time;
+      existingGoal.notes = payload.notes;
+      existingGoal.repeat = payload.repeat;
+      existingGoal.repeatInterval = payload.repeatInterval;
+      existingGoal.repeatUnit = payload.repeatUnit;
+      existingGoal.updatedAt = payload.updatedAt;
+
+      elements.goalListRange.value = "today";
+      elements.goalListStatus.value = "due-not-completed";
+      setPlannerStatusMessage(`${existingGoal.title} details updated.`, "success");
+      render();
+      return;
+    }
+
     const createdGoal = normalizeGoal({
       ...payload,
       status: "not-started",
@@ -2262,13 +2370,9 @@ function wireEvents() {
     });
     state.goals.push(createdGoal);
 
-    elements.goalForm.reset();
-    elements.goalRepeat.value = "none";
-    elements.goalRepeatInterval.value = 2;
-    elements.goalRepeatUnit.value = "day";
-    updateCustomRepeatVisibility();
+    resetGoalDetailsForm();
     elements.goalListRange.value = "today";
-    elements.goalListStatus.value = "all";
+    elements.goalListStatus.value = "due-not-completed";
     setPlannerStatusMessage(`${createdGoal.title} saved as a new goal.`, "success");
     render();
   });
