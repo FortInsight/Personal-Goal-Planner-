@@ -1,12 +1,12 @@
-const CACHE_NAME = "goal-planner-v12";
+const CACHE_NAME = "goal-planner-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./home.html",
   "./login.html",
   "./goal.html",
-  "./styles.css?v=2026-04-30-2",
-  "./rebuilt-dashboard.js?v=2026-04-30-2",
+  "./styles.css?v=2026-04-30-7",
+  "./rebuilt-dashboard.js?v=2026-04-30-7",
   "./manifest.webmanifest",
   "./planner.webmanifest",
   "./assets/icon.svg"
